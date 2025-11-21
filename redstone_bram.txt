@@ -1,0 +1,33 @@
+bram RS_RAM8_BRAM
+  init 0
+  abits 8
+  dbits 8
+  groups 2
+  ports 1 1
+  wrmode 0 1
+  enable 8 8
+  transp 0 0
+  clocks 1 1
+  clkpol 1 1
+endbram
+
+match RS_RAM8_BRAM
+  min efficiency 10
+endmatch
+
+bram RS_ROM8_BRAM
+  init 1
+  abits 8
+  dbits 8
+  groups 1
+  ports 1
+  wrmode 0
+  enable 0
+  transp 0
+  clocks 1
+  clkpol 1
+endbram
+
+match RS_ROM8_BRAM
+  min efficiency 10
+endmatch

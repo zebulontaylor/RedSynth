@@ -1,0 +1,128 @@
+library(redstone) {
+  type (bus8) {
+    base_type : array;
+    data_type : bit;
+    bit_width : 8;
+    bit_from : 7;
+    bit_to : 0;
+    downto : true;
+  }
+
+  cell(NOT) {
+    area: 2;
+    pin(A) { direction: input; }
+    pin(Y) { direction: output;
+             function: "(!A)"; }
+  }
+  cell(MUX) {
+    area: 4;
+    pin(A) { direction: input; }
+    pin(B) { direction: input; }
+    pin(S) { direction: input; }
+    pin(Y) { direction: output;
+             function: "((A * !S) + (B * S))"; }
+  }
+  cell(AND) {
+    area: 4;
+    pin(A) { direction: input; }
+    pin(B) { direction: input; }
+    pin(Y) { direction: output;
+             function: "(A * B)"; }
+  }
+  cell(OR) {
+    area: 4;
+    pin(A) { direction: input; }
+    pin(B) { direction: input; }
+    pin(Y) { direction: output;
+             function: "(A + B)"; }
+  }
+  cell(NIMPLY) {
+    area: 4;
+    pin(A) { direction: input; }
+    pin(B) { direction: input; }
+    pin(Y) { direction: output;
+             function: "(A * !B)"; }
+  }
+  cell(DFF) {
+    area: 10;
+    ff(IQ, IQN) {
+      next_state: "D";
+      clocked_on: "C";
+    }
+    pin(C) { direction: input;
+                 clock: true; }
+    pin(D) { direction: input; }
+    pin(Q) { direction: output;
+              function: "IQ"; }
+  }
+  cell(XOR) {
+    area: 6;
+    pin(A) { direction: input; }
+    pin(B) { direction: input; }
+    pin(Y) { direction: output;
+             function: "(A ^ B)"; }
+  }
+  cell(RS_ADD8) {
+    area: 100;
+    bus(A) { bus_type: bus8; direction: input; }
+    bus(B) { bus_type: bus8; direction: input; }
+    bus(Y) { bus_type: bus8; direction: output; }
+  }
+  cell(RS_SHL8) {
+    area: 100;
+    bus(A) { bus_type: bus8; direction: input; }
+    bus(B) { bus_type: bus8; direction: input; }
+    bus(Y) { bus_type: bus8; direction: output; }
+  }
+  cell(RS_DFF8) {
+    area: 80;
+    pin(C) { direction: input; clock: true; }
+    bus(D) { bus_type: bus8; direction: input; }
+    bus(Q) { bus_type: bus8; direction: output; }
+  }
+  cell(RS_RAM8) {
+    area: 1000;
+    pin(CLK) { direction: input; clock: true; }
+    pin(WE) { direction: input; }
+    bus(ADDR) { bus_type: bus8; direction: input; }
+    bus(DI) { bus_type: bus8; direction: input; }
+    bus(DO) { bus_type: bus8; direction: output; }
+  }
+  cell(RS_ROM8) {
+    area: 500;
+    pin(CLK) { direction: input; clock: true; }
+    bus(ADDR) { bus_type: bus8; direction: input; }
+    bus(DO) { bus_type: bus8; direction: output; }
+  }
+
+  cell(RS_AND8) {
+    area: 32;
+    bus(A) { bus_type: bus8; direction: input; }
+    bus(B) { bus_type: bus8; direction: input; }
+    bus(Y) { bus_type: bus8; direction: output; }
+  }
+  cell(RS_OR8) {
+    area: 32;
+    bus(A) { bus_type: bus8; direction: input; }
+    bus(B) { bus_type: bus8; direction: input; }
+    bus(Y) { bus_type: bus8; direction: output; }
+  }
+  cell(RS_XOR8) {
+    area: 48;
+    bus(A) { bus_type: bus8; direction: input; }
+    bus(B) { bus_type: bus8; direction: input; }
+    bus(Y) { bus_type: bus8; direction: output; }
+  }
+  cell(RS_NOT8) {
+    area: 16;
+    bus(A) { bus_type: bus8; direction: input; }
+    bus(Y) { bus_type: bus8; direction: output; }
+  }
+  cell(RS_MUX8) {
+    area: 50;
+    pin(S) { direction: input; }
+    bus(A) { bus_type: bus8; direction: input; }
+    bus(B) { bus_type: bus8; direction: input; }
+    bus(Y) { bus_type: bus8; direction: output; }
+  }
+}

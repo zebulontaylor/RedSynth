@@ -1,0 +1,24 @@
+read_verilog test_simple.v
+read_liberty -lib redstone.lib
+hierarchy -check -top test_simple
+
+# High-level synthesis
+proc
+opt
+
+# Map remaining logic to gates
+techmap
+
+# Map flip-flops (if any)
+dfflibmap -liberty redstone.lib
+
+# Map logic
+techmap -map simple_map.v
+
+# Cleanup
+clean
+
+# Reporting
+stat -liberty redstone.lib
+write_verilog synth_simple.v
+write_json netlist_simple.json

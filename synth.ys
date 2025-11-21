@@ -1,0 +1,38 @@
+read_verilog test.v
+read_liberty -lib redstone.lib
+hierarchy -check -top test
+
+# High-level synthesis
+proc
+opt
+memory_collect
+memory_bram -rules redstone_bram.txt
+techmap -map redstone_techmap.v
+opt
+
+# Convert pmux to mux trees to help mapping to RS_MUX8
+pmuxtree
+opt
+
+# Map any new muxes or logic
+techmap -map redstone_techmap.v
+opt
+
+# Use ABC with generic gates to avoid library issues
+# We tell ABC to map to AND, OR, XOR, MUX
+abc -g AND,OR,XOR,MUX
+
+# Map flip-flops
+dfflibmap -liberty redstone.lib
+
+# Map the generic gates from ABC to our library cells
+techmap -map simple_map.v
+
+# Cleanup
+clean
+
+# Reporting
+stat -liberty redstone.lib
+
+# Export to JSON
+write_json netlist.json
