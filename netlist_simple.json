@@ -86,6 +86,59 @@
         }
       }
     },
+    "MUX": {
+      "attributes": {
+        "abc9_box": "00000000000000000000000000000001",
+        "area": "4",
+        "blackbox": "00000000000000000000000000000001"
+      },
+      "ports": {
+        "A": {
+          "direction": "input",
+          "bits": [ 2 ]
+        },
+        "B": {
+          "direction": "input",
+          "bits": [ 3 ]
+        },
+        "S": {
+          "direction": "input",
+          "bits": [ 4 ]
+        },
+        "Y": {
+          "direction": "output",
+          "bits": [ 5 ]
+        }
+      },
+      "cells": {
+      },
+      "netnames": {
+        "A": {
+          "hide_name": 0,
+          "bits": [ 2 ],
+          "attributes": {
+          }
+        },
+        "B": {
+          "hide_name": 0,
+          "bits": [ 3 ],
+          "attributes": {
+          }
+        },
+        "S": {
+          "hide_name": 0,
+          "bits": [ 4 ],
+          "attributes": {
+          }
+        },
+        "Y": {
+          "hide_name": 0,
+          "bits": [ 5 ],
+          "attributes": {
+          }
+        }
+      }
+    },
     "NIMPLY": {
       "attributes": {
         "abc9_box": "00000000000000000000000000000001",
@@ -326,6 +379,58 @@
         "Q": {
           "hide_name": 0,
           "bits": [ 11, 12, 13, 14, 15, 16, 17, 18 ],
+          "attributes": {
+          }
+        }
+      }
+    },
+    "RS_MUX8": {
+      "attributes": {
+        "area": "50",
+        "blackbox": "00000000000000000000000000000001"
+      },
+      "ports": {
+        "A": {
+          "direction": "input",
+          "bits": [ 2, 3, 4, 5, 6, 7, 8, 9 ]
+        },
+        "B": {
+          "direction": "input",
+          "bits": [ 10, 11, 12, 13, 14, 15, 16, 17 ]
+        },
+        "S": {
+          "direction": "input",
+          "bits": [ 18 ]
+        },
+        "Y": {
+          "direction": "output",
+          "bits": [ 19, 20, 21, 22, 23, 24, 25, 26 ]
+        }
+      },
+      "cells": {
+      },
+      "netnames": {
+        "A": {
+          "hide_name": 0,
+          "bits": [ 2, 3, 4, 5, 6, 7, 8, 9 ],
+          "attributes": {
+          }
+        },
+        "B": {
+          "hide_name": 0,
+          "bits": [ 10, 11, 12, 13, 14, 15, 16, 17 ],
+          "attributes": {
+          }
+        },
+        "S": {
+          "hide_name": 0,
+          "bits": [ 18 ],
+          "attributes": {
+          }
+        },
+        "Y": {
+          "hide_name": 0,
+          "bits": [ 19, 20, 21, 22, 23, 24, 25, 26 ],
           "attributes": {
           }
         }
