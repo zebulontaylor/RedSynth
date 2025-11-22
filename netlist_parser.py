@@ -8,6 +8,7 @@ import networkx as nx
 import numpy as np
 import heapq
 import random
+import math
 try:
     import plotly.graph_objects as go
 except ImportError:
@@ -104,6 +105,27 @@ def parse_netlist(json_file_path: str, cells_json_path: str = "cells/cells.json"
             
             layout_data = cell_layouts.get(cell_type, {})
             
+            # Dynamic layout generation for reduce operations
+            if not layout_data and cell_type.startswith('$reduce_'):
+                connections = cell_data.get('connections', {})
+                a_bits = connections.get('A', [])
+                width_a = len(a_bits)
+                
+                # Height: 2 units per input bit, minimum 2
+                # This ensures inputs are spread out vertically like RS_NOT8/RS_AND8
+                height = max(2, width_a * 2)
+                width = 3
+                depth = 2
+                
+                layout_data = {
+                    'bbox': {'width': width, 'height': height, 'depth': depth},
+                    'inputs': {},
+                    'outputs': {'Y': {'x': width, 'y': height // 2, 'z': 1}}
+                }
+                
+                for i in range(width_a):
+                    layout_data['inputs'][f"A[{i}]"] = {'x': 0, 'y': 2 * i + 1, 'z': 0}
+
             if layout_data:
                 bbox_data = layout_data.get('bbox', {})
                 width = bbox_data.get('width', 0)
@@ -317,7 +339,7 @@ def optimize_placement(G: nx.DiGraph, max_time_seconds: float = 60.0) -> Dict[st
     for node in G.nodes():
         dims = G.nodes[node].get('dims', (1, 1, 1))
         w, h, d = int(dims[0]), int(dims[1]), int(dims[2])
-        padding = 6# G.nodes[node].get('padding', h*2) // h
+        padding = 10# G.nodes[node].get('padding', h*2) // h
         node_info[node] = {
             'w': w, 'h': h, 'd': d,
             'w_padded': w + padding, 
@@ -537,15 +559,15 @@ class RoutingGrid:
         for name, pos in self.positions.items():
             dims = self.nodes_data[name].get('dims', (1, 1, 1))
             w, h, d = int(dims[0]), int(dims[1]), int(dims[2])
-            x, y, z = int(pos[0]), int(pos[1]), int(pos[2])
+            x, y, z = pos[0], pos[1], pos[2]
             
             pad = 1
-            x_start = int(x - w/2) - pad
-            x_end = int(x + w/2) + pad
-            y_start = int(y - h/2) - pad
-            y_end = int(y + h/2) + pad
-            z_start = int(z - d/2) - pad
-            z_end = int(z + d/2) + pad
+            x_start = math.floor(x - w/2 - pad)
+            x_end = math.ceil(x + w/2 + pad)
+            y_start = math.floor(y - h/2 - pad)
+            y_end = math.ceil(y + h/2 + pad)
+            z_start = math.floor(z - d/2 - pad)
+            z_end = math.ceil(z + d/2 + pad)
             
             for ix in range(x_start, x_end + 1):
                 for iy in range(y_start, y_end + 1):
@@ -564,7 +586,8 @@ class RoutingGrid:
     def add_path(self, path):
         for i in range(len(path)):
             self.blocked_coords.add(path[i])
-            
+            self.blocked_coords.add((path[i][0], path[i][1]+1, path[i][2]))  # 2 tall
+
             if i < len(path) - 1:
                 p1 = path[i]
                 p2 = path[i+1]
@@ -588,11 +611,14 @@ class RoutingGrid:
             # Horizontal moves (slope 0) - Cost 1
             ((x+1, y, z), 1.0), ((x-1, y, z), 1.0),
             ((x, y, z+1), 1.0), ((x, y, z-1), 1.0),
+            # Going through a wire - Cost 2
+            ((x+2, y, z), 2.0), ((x-2, y, z), 1.2),
+            ((x, y, z+2), 2.0), ((x, y, z-2), 1.2),
             # Sloped vertical moves (slope 1/2) - Cost 3 (approx Manhattan dist)
-            ((x+2, y+1, z), 3.0), ((x-2, y+1, z), 3.0),
-            ((x, y+1, z+2), 3.0), ((x, y+1, z-2), 3.0),
-            ((x+2, y-1, z), 3.0), ((x-2, y-1, z), 3.0),
-            ((x, y-1, z+2), 3.0), ((x, y-1, z-2), 3.0)
+            ((x+2, y+1, z), 3.0), ((x-2, y+1, z), 2.0),
+            ((x, y+1, z+2), 3.0), ((x, y+1, z-2), 2.0),
+            ((x+2, y-1, z), 3.0), ((x-2, y-1, z), 2.0),
+            ((x, y-1, z+2), 3.0), ((x, y-1, z-2), 2.0)
         ]
         valid = []
         min_x, min_y, min_z = self.min_coords
@@ -611,8 +637,13 @@ class RoutingGrid:
                     mid1 = (x + dx//2, y, z + dz//2)
                     mid2 = (x + dx//2, y + dy, z + dz//2)
                     
-                    if self.is_blocked(mid1, allowed_points) or self.is_blocked(mid2, allowed_points):
+                    if cost != 2.0 and (self.is_blocked(mid1, allowed_points) or self.is_blocked(mid2, allowed_points)):
                         continue
+
+                    if cost == 2.0:
+                        # Allow jumps through wires
+                        if self.is_blocked((nx, ny, nz), allowed_points):
+                            continue
 
                 valid.append(((nx, ny, nz), cost))
         return valid
@@ -662,25 +693,40 @@ def a_star(start, goal, grid, allowed_points, max_steps=50000):
 
 
 def find_tunnel(grid, start_point):
-    """Finds the shortest path from start_point to any non-blocked point."""
+    """Finds the shortest path from start_point to any non-blocked point using only cardinal directions."""
     if start_point not in grid.blocked_coords:
         return []
-        
-    queue = [(start_point, [start_point])]
-    visited = {start_point}
+
+    directions = [
+        (1, 0, 0), (-1, 0, 0),
+        (0, 0, 1), (0, 0, -1)
+    ]
     
-    while queue:
-        current, path = queue.pop(0)
+    valid_paths = []
+    
+    for dx, dy, dz in directions:
+        path = [start_point]
+        curr_x, curr_y, curr_z = start_point
         
-        if current not in grid.blocked_coords:
-            return path
+        # Limit tunnel length to avoid infinite loops or extremely long paths
+        max_tunnel_len = 10
+        
+        for _ in range(max_tunnel_len):
+            curr_x += dx
+            curr_y += dy
+            curr_z += dz
+            next_point = (curr_x, curr_y, curr_z)
+            path.append(next_point)
             
-        for neighbor, _ in grid.get_neighbors(current):
-            if neighbor not in visited:
-                visited.add(neighbor)
-                queue.append((neighbor, path + [neighbor]))
+            if next_point not in grid.blocked_coords:
+                valid_paths.append(path)
+                break
                 
-    return []
+    if not valid_paths:
+        return []
+        
+    # Return the shortest path
+    return min(valid_paths, key=len)
 
 def route_nets(G: nx.DiGraph, positions: Dict[str, Tuple[float, float, float]]) -> Dict[str, List[List[Tuple[int, int, int]]]]:
     print("Starting routing...")
@@ -710,17 +756,30 @@ def route_nets(G: nx.DiGraph, positions: Dict[str, Tuple[float, float, float]]) 
         
     routed_paths = {}
     
+    failed_connections = 0
+    total_connections = 0
+    
+    # --- Pass 1: Pre-calculate tunnels and claim endpoints ---
+    print("Pass 1: Running tunneling for all pins...")
+    
+    # Store tunnels and points: 
+    # net_name -> { 
+    #   'driver': {'point': (x,y,z), 'tunnel': path}, 
+    #   'sinks': { sink_idx: {'point': (x,y,z), 'tunnel': path} } 
+    # }
+    precalculated_data = {} 
+    
     total_nets = len(nets)
     for i, (net_name, net_data) in enumerate(nets.items()):
-        if i % 10 == 0:
-            print(f"Routing net {i}/{total_nets}...", end='\r')
-            
         driver_node, driver_port = net_data['driver']
         sinks = net_data['sinks']
         
         if not driver_node or not sinks:
             continue
+
+        precalculated_data[net_name] = {'driver': None, 'sinks': {}}
             
+        # 1. Driver Tunnel
         d_pos = positions[driver_node]
         d_pins = nodes_data[driver_node]['pin_locations']
         d_pin_offset = d_pins.get(driver_port, (0, 0, 0))
@@ -731,16 +790,20 @@ def route_nets(G: nx.DiGraph, positions: Dict[str, Tuple[float, float, float]]) 
         start_z = int(round(d_pos[2] - d_dims[2]/2 + d_pin_offset[2]))
         start_point = (start_x, start_y, start_z)
         
-        tree_points = {start_point}
-        start_tunnel = find_tunnel(grid, start_point)
-        if not start_tunnel and start_point in grid.blocked_coords:
-             print(f"  [Fail] Start blocked and no tunnel: {driver_node} {driver_port} at {start_point}")
-             continue
+        driver_tunnel = find_tunnel(grid, start_point)
+        precalculated_data[net_name]['driver'] = {'point': start_point, 'tunnel': driver_tunnel}
         
-        remaining_sinks = []
-        sink_tunnels = {}
-        
-        for sink_node, sink_port in sinks:
+        if driver_tunnel:
+            # Claim the tunnel immediately
+            for p in driver_tunnel:
+                grid.blocked_coords.add(p)
+        elif start_point in grid.blocked_coords:
+             pass
+        else:
+            grid.blocked_coords.add(start_point)
+
+        # 2. Sink Tunnels
+        for idx, (sink_node, sink_port) in enumerate(sinks):
             s_pos = positions[sink_node]
             s_pins = nodes_data[sink_node]['pin_locations']
             s_pin_offset = s_pins.get(sink_port, (0, 0, 0))
@@ -751,10 +814,60 @@ def route_nets(G: nx.DiGraph, positions: Dict[str, Tuple[float, float, float]]) 
             sz = int(round(s_pos[2] - s_dims[2]/2 + s_pin_offset[2]))
             
             p = (sx, sy, sz)
+            
+            sink_tunnel = find_tunnel(grid, p)
+            precalculated_data[net_name]['sinks'][idx] = {'point': p, 'tunnel': sink_tunnel}
+            
+            if sink_tunnel:
+                for tp in sink_tunnel:
+                    grid.blocked_coords.add(tp)
+            elif p in grid.blocked_coords:
+                pass
+            else:
+                grid.blocked_coords.add(p)
+
+    # --- Pass 2: Main Routing ---
+    print("Pass 2: connecting nets...")
+    
+    for i, (net_name, net_data) in enumerate(nets.items()):
+        if i % 10 == 0:
+            print(f"Routing net {i}/{total_nets}...", end='\r')
+            
+        driver_node, driver_port = net_data['driver']
+        sinks = net_data['sinks']
+        
+        if not driver_node or not sinks:
+            continue
+            
+        total_connections += len(sinks)
+        
+        # Retrieve pre-calculated data
+        net_precalc = precalculated_data.get(net_name, {})
+        driver_info = net_precalc.get('driver')
+        if not driver_info:
+            continue
+            
+        start_point = driver_info['point']
+        start_tunnel = driver_info['tunnel']
+        
+        # Initialize tree with start point and tunnel
+        tree_points = {start_point}
+        for p in start_tunnel:
+            tree_points.add(p)
+
+        remaining_sinks = []
+        sink_tunnels = {} # Local map for this net: point -> tunnel
+        
+        for idx, (sink_node, sink_port) in enumerate(sinks):
+            sink_info = net_precalc.get('sinks', {}).get(idx)
+            if not sink_info:
+                continue
+                
+            p = sink_info['point']
+            tun = sink_info['tunnel']
+            
             remaining_sinks.append(p)
-            sink_tunnels[p] = find_tunnel(grid, p)
-            if not sink_tunnels[p] and p in grid.blocked_coords:
-                print(f"  [Fail] Sink blocked and no tunnel: {sink_node} {sink_port} at {p}")
+            sink_tunnels[p] = tun
             
         net_paths = []
         
@@ -774,17 +887,12 @@ def route_nets(G: nx.DiGraph, positions: Dict[str, Tuple[float, float, float]]) 
                 
             start, end = best_pair
             
-            allowed_points = {start, end}
+            allowed_points = set(tree_points)
             
             if end in sink_tunnels:
                 for p in sink_tunnels[end]:
                     allowed_points.add(p)
-            
-            for p in start_tunnel:
-                allowed_points.add(p)
-            for t_path in sink_tunnels.values():
-                for p in t_path:
-                    allowed_points.add(p)
+            allowed_points.add(end) 
             
             path = a_star(start, end, grid, allowed_points)
             
@@ -793,20 +901,20 @@ def route_nets(G: nx.DiGraph, positions: Dict[str, Tuple[float, float, float]]) 
                 grid.add_path(path)
                 for p in path:
                     tree_points.add(p)
+                
+                if end in sink_tunnels:
+                    for p in sink_tunnels[end]:
+                        tree_points.add(p)
+                        
                 remaining_sinks.remove(end)
             else:
                 print(f"  [Fail] No path found for net {net_name} from {start} to {end}")
+                failed_connections += 1
                 remaining_sinks.remove(end)
                 
         routed_paths[net_name] = net_paths
         
-    failed_nets = 0
-    total_nets = len(nets)
-    for net_name, paths in routed_paths.items():
-        if not paths and len(nets[net_name]['sinks']) > 0:
-            failed_nets += 1
-            
-    print(f"\nRouting complete. Failed nets: {failed_nets}/{total_nets}")
+    print(f"\nRouting complete. Failed connections: {failed_connections}/{total_connections}")
     return routed_paths
 
 def visualize_graph(G: nx.DiGraph, positions: Optional[Dict[str, Tuple[float, float, float]]] = None, routed_paths: Optional[Dict[str, List[List[Tuple[int, int, int]]]]] = None):
