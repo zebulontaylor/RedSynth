@@ -440,7 +440,10 @@ def optimize_placement(G: nx.DiGraph, max_time_seconds: float = 60.0) -> Dict[st
     for node in G.nodes():
         dims = G.nodes[node].get('dims', (1, 1, 1))
         w, h, d = int(dims[0]), int(dims[1]), int(dims[2])
-        padding = 6# G.nodes[node].get('padding', h*2) // h
+        if 'pin_locations' not in G.nodes[node]:
+            padding = 8
+        else:
+            padding = int(len(G.nodes[node]['pin_locations']) * 8 / h)
         node_info[node] = {
             'w': w, 'h': h, 'd': d,
             'w_padded': w + padding, 
@@ -492,14 +495,24 @@ def optimize_placement(G: nx.DiGraph, max_time_seconds: float = 60.0) -> Dict[st
         return rotated
     
     def calculate_wire_cost(node: str, pos: Tuple[float, float, float], 
-                           neighbors: List[str], placed_positions: Dict) -> float:
-        """Calculate total Manhattan distance to placed neighbors."""
+                           neighbors: List[str], placed_positions: Dict, 
+                           raw_positions: Dict) -> float:
+        """Calculate total Manhattan distance to neighbors (placed or raw)."""
         cost = 0.0
         for neighbor in neighbors:
             if neighbor in placed_positions:
                 n_x, n_y, n_z = placed_positions[neighbor]
                 px, py, pz = pos
                 cost += abs(n_x - px) + abs(n_y - py) + abs(n_z - pz)
+            elif neighbor in raw_positions:
+                # Fallback to raw spring layout position if not yet placed
+                n_x, n_y, n_z = raw_positions[neighbor]
+                px, py, pz = raw_positions[node]
+                # Dont weight wire cost for raw positions as heavily
+                cost += (abs(n_x - px) + abs(n_y - py) + abs(n_z - pz)) * 0.2
+            else:
+                continue
+                
         return cost
         
     # Pre-calculate spiral offsets once
@@ -507,7 +520,7 @@ def optimize_placement(G: nx.DiGraph, max_time_seconds: float = 60.0) -> Dict[st
     spiral_offsets_cache = []
     pq = [(0.0, 0.0, 0, 0, 0)]
     visited_offsets = {(0, 0, 0)}
-    Y_PENALTY = 10.0
+    Y_PENALTY = 20.0
     MAX_OFFSETS = 1000000 # Limit search space
     
     while pq and len(spiral_offsets_cache) < MAX_OFFSETS:
@@ -521,7 +534,9 @@ def optimize_placement(G: nx.DiGraph, max_time_seconds: float = 60.0) -> Dict[st
         ]:
             if (next_x, next_y, next_z) not in visited_offsets:
                 visited_offsets.add((next_x, next_y, next_z))
-                new_cost = next_x*next_x + Y_PENALTY * next_y*next_y + next_z*next_z
+                effective_y_penalty = Y_PENALTY * abs(next_y) / (abs(next_x) + abs(next_z) + 1)
+                effective_y_penalty = max(effective_y_penalty - 0.25, 0.1)
+                new_cost = next_x*next_x + effective_y_penalty * next_y*next_y + next_z*next_z
                 heapq.heappush(pq, (new_cost, random.random(), next_x, next_y, next_z))
 
     sorted_nodes = sorted(G.nodes(), key=lambda n: raw_pos[n][0])
@@ -581,7 +596,7 @@ def optimize_placement(G: nx.DiGraph, max_time_seconds: float = 60.0) -> Dict[st
                 cz = fz + d / 2.0
                 
                 # Calculate wire cost for this rotation
-                wire_cost = calculate_wire_cost(node, (cx, cy, cz), all_neighbors, final_positions)
+                wire_cost = calculate_wire_cost(node, (cx, cy, cz), all_neighbors, final_positions, raw_pos)
                 
                 # Add penalty for non-zero rotation to prefer 0° when costs are equal
                 rotation_penalty = 0.1 * (rotation / 90)
@@ -694,10 +709,6 @@ class RoutingGrid:
             p = path[i]
             self.blocked_coords.add(p)
             self.wire_occupancy[p] = net_name
-            
-            p_up = (p[0], p[1]+1, p[2])
-            self.blocked_coords.add(p_up)  # 2 tall
-            self.wire_occupancy[p_up] = net_name
 
             if i < len(path) - 1:
                 p1 = path[i]
@@ -718,16 +729,18 @@ class RoutingGrid:
                     self.wire_occupancy[mid1] = net_name
                     self.wire_occupancy[mid2] = net_name
 
+                    # Claim support for downward moves
+                    if dy == -1:
+                        mid_support = (mid2[0], mid2[1]-1, mid2[2])
+                        self.blocked_coords.add(mid_support)
+                        self.wire_occupancy[mid_support] = net_name
+
     def remove_path(self, path):
         """Removes a path from the grid (rip-up)."""
         for i in range(len(path)):
             p = path[i]
             self.blocked_coords.discard(p)
             self.wire_occupancy.pop(p, None)
-            
-            p_up = (p[0], p[1]+1, p[2])
-            self.blocked_coords.discard(p_up)
-            self.wire_occupancy.pop(p_up, None)
 
             if i < len(path) - 1:
                 p1 = path[i]
@@ -746,6 +759,12 @@ class RoutingGrid:
                     self.blocked_coords.discard(mid2)
                     self.wire_occupancy.pop(mid1, None)
                     self.wire_occupancy.pop(mid2, None)
+
+                    # Release support for downward moves
+                    if dy == -1:
+                        mid_support = (mid2[0], mid2[1]-1, mid2[2])
+                        self.blocked_coords.discard(mid_support)
+                        self.wire_occupancy.pop(mid_support, None)
 
     def get_neighbors(self, point, allowed_points=None, forceful=False):
         x, y, z = point
@@ -777,18 +796,44 @@ class RoutingGrid:
                 # If the target point is an allowed point (e.g. a pin or existing wire), we skip the height check
                 # to allow connecting to pins that might be flush against a component, or traversing existing wires.
                 is_target = allowed_points is not None and (nx, ny, nz) in allowed_points
-                if not is_target and self.is_blocked((nx, ny+1, nz), allowed_points, forceful):
-                    continue
+
+                dx = nx - x
+                dy = ny - y
+                dz = nz - z
+                
+                if not is_target:
+                    if self.is_blocked((nx, ny-1, nz), allowed_points, forceful):
+                        continue
+                    # Check sides (perpendicular) to prevent crosstalk
+                    # If moving in X (dx=1, dz=0), check Z neighbors (offset by dx)
+                    # If moving in Z (dx=0, dz=1), check X neighbors (offset by dz)
+                    if self.is_blocked((nx+dz, ny, nz+dx), allowed_points, forceful):
+                        continue
+                    if self.is_blocked((nx-dz, ny, nz-dx), allowed_points, forceful):
+                        continue
 
                 # Check for clipping on vertical moves
-                if abs(ny - y) == 1:
-                    dx = nx - x
-                    dy = ny - y
-                    dz = nz - z
+                if abs(dy) == 1:
                     mid1 = (x + dx//2, y, z + dz//2)
                     mid2 = (x + dx//2, y + dy, z + dz//2)
                     
                     if (self.is_blocked(mid1, allowed_points, forceful) or self.is_blocked(mid2, allowed_points, forceful)):
+                        continue
+
+                    # Check support for downward moves (mid2 needs support at y-2)
+                    if dy == -1:
+                        mid_support = (mid2[0], mid2[1]-1, mid2[2])
+                        if self.is_blocked(mid_support, allowed_points, forceful):
+                            continue
+
+                    # Check crosstalk for intermediate wire (mid2)
+                    # Perpendicular offsets: if moving in X, check Z neighbors.
+                    p_dx = dz // 2
+                    p_dz = dx // 2
+                    
+                    if self.is_blocked((mid2[0]+p_dx, mid2[1], mid2[2]+p_dz), allowed_points, forceful):
+                        continue
+                    if self.is_blocked((mid2[0]-p_dx, mid2[1], mid2[2]-p_dz), allowed_points, forceful):
                         continue
 
                 # Apply penalty for bulldozing
@@ -801,7 +846,7 @@ class RoutingGrid:
                     if (nx, ny+1, nz) in self.wire_occupancy: is_colliding = True
                     
                     if is_colliding:
-                        final_cost += 50.0 # Penalty for ripping up a net (reduced to avoid A* timeout)
+                        final_cost += 20.0 # Penalty for ripping up a net (reduced to avoid A* timeout)
 
                 valid.append(((nx, ny, nz), final_cost))
         return valid
@@ -887,7 +932,7 @@ def find_tunnel(grid, start_point):
     return min(valid_paths, key=len)
 
 
-def route_nets(G: nx.DiGraph, positions: Dict[str, Tuple[float, float, float]], max_time_seconds: float = None) -> Tuple[Dict[str, List[List[Tuple[int, int, int]]]], List[Dict], List[List[Tuple[int, int, int]]]]:
+def route_nets(G: nx.DiGraph, positions: Dict[str, Tuple[float, float, float]], max_time_seconds: float = None) -> Tuple[Dict[str, List[List[Tuple[int, int, int]]]], List[Dict]]:
     print("Starting routing...")
     
     nodes_data = {}
@@ -1143,6 +1188,36 @@ def route_nets(G: nx.DiGraph, positions: Dict[str, Tuple[float, float, float]], 
                 })
                 remaining_sinks.remove(end)
                 success = False
+        
+        # Add the used portion of the driver tunnel to the routed paths
+        if driver_tunnel:
+            driver_tunnel_indices = {p: i for i, p in enumerate(driver_tunnel)}
+            max_driver_idx = -1
+            
+            # Check all points in the routed paths to see how far up the tunnel we went
+            for path in current_net_paths:
+                if path and path[0] in driver_tunnel_indices:
+                    idx = driver_tunnel_indices[path[0]]
+                    max_driver_idx = max(max_driver_idx, idx)
+                if path and path[-1] in driver_tunnel_indices:
+                    idx = driver_tunnel_indices[path[-1]]
+                    max_driver_idx = max(max_driver_idx, idx)
+            
+            # Also check the start point itself (index 0 of tunnel usually)
+            # Actually, the tunnel starts at index 0 near the driver.
+            # If we used any point in the tunnel, we need the segment from 0 to that point.
+            
+            if max_driver_idx >= 0:
+                used_tunnel = driver_tunnel[:max_driver_idx+1]
+                # Only add if it has length (more than 1 point or just 1 point? A path usually needs 2 points to be a line)
+                # But a single point path is valid for connectivity if it overlaps.
+                # Let's add it if it's not empty.
+                if used_tunnel:
+                    # We need to make sure we don't duplicate paths if they are already covered?
+                    # But the tunnel is a specific pre-calculated path.
+                    # Let's add it.
+                    current_net_paths.append(used_tunnel)
+                    grid.add_path(used_tunnel, net_name)
                 
         if success:
             routed_paths[net_name] = current_net_paths
@@ -1155,16 +1230,7 @@ def route_nets(G: nx.DiGraph, positions: Dict[str, Tuple[float, float, float]], 
         
     print(f"\nRouting complete. Failed connections: {failed_connections}/{total_connections}")
     
-    # Collect all tunnels for visualization
-    all_tunnels = []
-    for net_data in precalculated_data.values():
-        if net_data['driver'] and net_data['driver']['tunnel']:
-            all_tunnels.append(net_data['driver']['tunnel'])
-        for sink_data in net_data['sinks'].values():
-            if sink_data['tunnel']:
-                all_tunnels.append(sink_data['tunnel'])
-                
-    return routed_paths, failed_connections_list, all_tunnels
+    return routed_paths, failed_connections_list
 
 def visualize_graph(G: nx.DiGraph, positions: Optional[Dict[str, Tuple[float, float, float]]] = None, routed_paths: Optional[Dict[str, List[List[Tuple[int, int, int]]]]] = None):
     """Visualizes the graph using a 3D spring layout with approximate bounding boxes."""
@@ -1375,7 +1441,7 @@ def visualize_2d_projection(G: nx.DiGraph, positions: Dict[str, Tuple[float, flo
     print("Done.")
 
 
-def visualize_graph_interactive(G: nx.DiGraph, positions: Dict[str, Tuple[float, float, float]], routed_paths: Optional[Dict[str, List[List[Tuple[int, int, int]]]]] = None, failed_nets: Optional[List[Dict]] = None, grid: Optional[RoutingGrid] = None, tunnels: Optional[List[List[Tuple[int, int, int]]]] = None):
+def visualize_graph_interactive(G: nx.DiGraph, positions: Dict[str, Tuple[float, float, float]], routed_paths: Optional[Dict[str, List[List[Tuple[int, int, int]]]]] = None, failed_nets: Optional[List[Dict]] = None, grid: Optional[RoutingGrid] = None):
     """Visualizes the graph using Plotly for interactive 3D exploration."""
     if go is None:
         print("Plotly is not installed. Skipping interactive visualization.")
@@ -1610,28 +1676,7 @@ def visualize_graph_interactive(G: nx.DiGraph, positions: Dict[str, Tuple[float,
             ))
 
     
-    if tunnels:
-        print("Adding tunnels to interactive plot...")
-        t_x, t_y, t_z = [], [], []
-        for path in tunnels:
-            for i in range(len(path)):
-                p = path[i]
-                t_x.append(p[0])
-                t_y.append(p[2])
-                t_z.append(p[1])
-            t_x.append(None)
-            t_y.append(None)
-            t_z.append(None)
-            
-        fig.add_trace(go.Scatter3d(
-            x=t_x,
-            y=t_y,
-            z=t_z,
-            mode='lines',
-            line=dict(color='orange', width=3),
-            opacity=0.5,
-            name='Tunnels'
-        ))
+
 
     if routed_paths:
         print("Adding routed paths to interactive plot...")
@@ -1703,11 +1748,10 @@ if __name__ == "__main__":
     failed_nets = None
     grid = None
     
-    tunnels = None
     if optimized_pos:
         print("Using optimized placement.")
         # Run routing
-        routed_paths, failed_nets, tunnels = route_nets(G, optimized_pos)
+        routed_paths, failed_nets = route_nets(G, optimized_pos)
         visualize_graph(G, positions=optimized_pos, routed_paths=routed_paths)
     else:
         print("Falling back to spring layout.")
@@ -1715,5 +1759,5 @@ if __name__ == "__main__":
         
     if optimized_pos:
         visualize_2d_projection(G, optimized_pos, routed_paths=routed_paths)
-        visualize_graph_interactive(G, optimized_pos, routed_paths=routed_paths, failed_nets=failed_nets, tunnels=tunnels)
+        visualize_graph_interactive(G, optimized_pos, routed_paths=routed_paths, failed_nets=failed_nets)
 
