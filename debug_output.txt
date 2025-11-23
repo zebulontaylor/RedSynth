@@ -1,0 +1,203 @@
+Parsing netlist from netlist.json...
+DEBUG: Generating layout for $eq$test.v:189$18 ($eq)
+DEBUG: input_ports: dict_keys(['A', 'B'])
+DEBUG: layout inputs: {'A[0]': {'x': 0, 'y': 1, 'z': 0}, 'A[1]': {'x': 0, 'y': 3, 'z': 0}, 'A[2]': {'x': 0, 'y': 5, 'z': 0}, 'A[3]': {'x': 0, 'y': 7, 'z': 0}, 'A[4]': {'x': 0, 'y': 9, 'z': 0}, 'A[5]': {'x': 0, 'y': 11, 'z': 0}, 'A[6]': {'x': 0, 'y': 13, 'z': 0}, 'A[7]': {'x': 0, 'y': 15, 'z': 0}, 'B[0]': {'x': 2, 'y': 1, 'z': 0}, 'B[1]': {'x': 2, 'y': 3, 'z': 0}, 'B[2]': {'x': 2, 'y': 5, 'z': 0}, 'B[3]': {'x': 2, 'y': 7, 'z': 0}, 'B[4]': {'x': 2, 'y': 9, 'z': 0}, 'B[5]': {'x': 2, 'y': 11, 'z': 0}, 'B[6]': {'x': 2, 'y': 13, 'z': 0}, 'B[7]': {'x': 2, 'y': 15, 'z': 0}}
+DEBUG: Generating layout for $eq$test.v:190$19 ($eq)
+DEBUG: input_ports: dict_keys(['A', 'B'])
+DEBUG: layout inputs: {'A[0]': {'x': 0, 'y': 1, 'z': 0}, 'A[1]': {'x': 0, 'y': 3, 'z': 0}, 'A[2]': {'x': 0, 'y': 5, 'z': 0}, 'A[3]': {'x': 0, 'y': 7, 'z': 0}, 'A[4]': {'x': 0, 'y': 9, 'z': 0}, 'A[5]': {'x': 0, 'y': 11, 'z': 0}, 'A[6]': {'x': 0, 'y': 13, 'z': 0}, 'A[7]': {'x': 0, 'y': 15, 'z': 0}, 'B[0]': {'x': 2, 'y': 1, 'z': 0}, 'B[1]': {'x': 2, 'y': 3, 'z': 0}, 'B[2]': {'x': 2, 'y': 5, 'z': 0}, 'B[3]': {'x': 2, 'y': 7, 'z': 0}, 'B[4]': {'x': 2, 'y': 9, 'z': 0}, 'B[5]': {'x': 2, 'y': 11, 'z': 0}, 'B[6]': {'x': 2, 'y': 13, 'z': 0}, 'B[7]': {'x': 2, 'y': 15, 'z': 0}}
+DEBUG: Generating layout for $eq$test.v:191$20 ($eq)
+DEBUG: input_ports: dict_keys(['A', 'B'])
+DEBUG: layout inputs: {'A[0]': {'x': 0, 'y': 1, 'z': 0}, 'A[1]': {'x': 0, 'y': 3, 'z': 0}, 'A[2]': {'x': 0, 'y': 5, 'z': 0}, 'A[3]': {'x': 0, 'y': 7, 'z': 0}, 'A[4]': {'x': 0, 'y': 9, 'z': 0}, 'A[5]': {'x': 0, 'y': 11, 'z': 0}, 'A[6]': {'x': 0, 'y': 13, 'z': 0}, 'A[7]': {'x': 0, 'y': 15, 'z': 0}, 'B[0]': {'x': 2, 'y': 1, 'z': 0}, 'B[1]': {'x': 2, 'y': 3, 'z': 0}, 'B[2]': {'x': 2, 'y': 5, 'z': 0}, 'B[3]': {'x': 2, 'y': 7, 'z': 0}, 'B[4]': {'x': 2, 'y': 9, 'z': 0}, 'B[5]': {'x': 2, 'y': 11, 'z': 0}, 'B[6]': {'x': 2, 'y': 13, 'z': 0}, 'B[7]': {'x': 2, 'y': 15, 'z': 0}}
+DEBUG: Generating layout for $eq$test.v:199$21 ($eq)
+DEBUG: input_ports: dict_keys(['A', 'B'])
+DEBUG: layout inputs: {'A[0]': {'x': 0, 'y': 1, 'z': 0}, 'A[1]': {'x': 0, 'y': 3, 'z': 0}, 'A[2]': {'x': 0, 'y': 5, 'z': 0}, 'A[3]': {'x': 0, 'y': 7, 'z': 0}, 'A[4]': {'x': 0, 'y': 9, 'z': 0}, 'A[5]': {'x': 0, 'y': 11, 'z': 0}, 'A[6]': {'x': 0, 'y': 13, 'z': 0}, 'A[7]': {'x': 0, 'y': 15, 'z': 0}, 'B[0]': {'x': 2, 'y': 1, 'z': 0}, 'B[1]': {'x': 2, 'y': 3, 'z': 0}, 'B[2]': {'x': 2, 'y': 5, 'z': 0}, 'B[3]': {'x': 2, 'y': 7, 'z': 0}, 'B[4]': {'x': 2, 'y': 9, 'z': 0}, 'B[5]': {'x': 2, 'y': 11, 'z': 0}, 'B[6]': {'x': 2, 'y': 13, 'z': 0}, 'B[7]': {'x': 2, 'y': 15, 'z': 0}}
+DEBUG: Generating layout for $procmux$137_CMP0 ($eq)
+DEBUG: input_ports: dict_keys(['A', 'B'])
+DEBUG: layout inputs: {'A[0]': {'x': 0, 'y': 1, 'z': 0}, 'A[1]': {'x': 0, 'y': 3, 'z': 0}, 'A[2]': {'x': 0, 'y': 5, 'z': 0}, 'A[3]': {'x': 0, 'y': 7, 'z': 0}, 'A[4]': {'x': 0, 'y': 9, 'z': 0}, 'A[5]': {'x': 0, 'y': 11, 'z': 0}, 'A[6]': {'x': 0, 'y': 13, 'z': 0}, 'A[7]': {'x': 0, 'y': 15, 'z': 0}, 'B[0]': {'x': 2, 'y': 1, 'z': 0}, 'B[1]': {'x': 2, 'y': 3, 'z': 0}, 'B[2]': {'x': 2, 'y': 5, 'z': 0}, 'B[3]': {'x': 2, 'y': 7, 'z': 0}, 'B[4]': {'x': 2, 'y': 9, 'z': 0}, 'B[5]': {'x': 2, 'y': 11, 'z': 0}, 'B[6]': {'x': 2, 'y': 13, 'z': 0}, 'B[7]': {'x': 2, 'y': 15, 'z': 0}}
+DEBUG: Generating layout for $procmux$153_CMP0 ($eq)
+DEBUG: input_ports: dict_keys(['A', 'B'])
+DEBUG: layout inputs: {'A[0]': {'x': 0, 'y': 1, 'z': 0}, 'A[1]': {'x': 0, 'y': 3, 'z': 0}, 'A[2]': {'x': 0, 'y': 5, 'z': 0}, 'A[3]': {'x': 0, 'y': 7, 'z': 0}, 'A[4]': {'x': 0, 'y': 9, 'z': 0}, 'A[5]': {'x': 0, 'y': 11, 'z': 0}, 'A[6]': {'x': 0, 'y': 13, 'z': 0}, 'A[7]': {'x': 0, 'y': 15, 'z': 0}, 'B[0]': {'x': 2, 'y': 1, 'z': 0}, 'B[1]': {'x': 2, 'y': 3, 'z': 0}, 'B[2]': {'x': 2, 'y': 5, 'z': 0}, 'B[3]': {'x': 2, 'y': 7, 'z': 0}, 'B[4]': {'x': 2, 'y': 9, 'z': 0}, 'B[5]': {'x': 2, 'y': 11, 'z': 0}, 'B[6]': {'x': 2, 'y': 13, 'z': 0}, 'B[7]': {'x': 2, 'y': 15, 'z': 0}}
+DEBUG: Generating layout for $procmux$154_CMP0 ($eq)
+DEBUG: input_ports: dict_keys(['A', 'B'])
+DEBUG: layout inputs: {'A[0]': {'x': 0, 'y': 1, 'z': 0}, 'A[1]': {'x': 0, 'y': 3, 'z': 0}, 'A[2]': {'x': 0, 'y': 5, 'z': 0}, 'A[3]': {'x': 0, 'y': 7, 'z': 0}, 'A[4]': {'x': 0, 'y': 9, 'z': 0}, 'A[5]': {'x': 0, 'y': 11, 'z': 0}, 'A[6]': {'x': 0, 'y': 13, 'z': 0}, 'A[7]': {'x': 0, 'y': 15, 'z': 0}, 'B[0]': {'x': 2, 'y': 1, 'z': 0}, 'B[1]': {'x': 2, 'y': 3, 'z': 0}, 'B[2]': {'x': 2, 'y': 5, 'z': 0}, 'B[3]': {'x': 2, 'y': 7, 'z': 0}, 'B[4]': {'x': 2, 'y': 9, 'z': 0}, 'B[5]': {'x': 2, 'y': 11, 'z': 0}, 'B[6]': {'x': 2, 'y': 13, 'z': 0}, 'B[7]': {'x': 2, 'y': 15, 'z': 0}}
+DEBUG: Generating layout for $procmux$159_CMP0 ($eq)
+DEBUG: input_ports: dict_keys(['A', 'B'])
+DEBUG: layout inputs: {'A[0]': {'x': 0, 'y': 1, 'z': 0}, 'A[1]': {'x': 0, 'y': 3, 'z': 0}, 'A[2]': {'x': 0, 'y': 5, 'z': 0}, 'A[3]': {'x': 0, 'y': 7, 'z': 0}, 'A[4]': {'x': 0, 'y': 9, 'z': 0}, 'A[5]': {'x': 0, 'y': 11, 'z': 0}, 'A[6]': {'x': 0, 'y': 13, 'z': 0}, 'A[7]': {'x': 0, 'y': 15, 'z': 0}, 'B[0]': {'x': 2, 'y': 1, 'z': 0}, 'B[1]': {'x': 2, 'y': 3, 'z': 0}, 'B[2]': {'x': 2, 'y': 5, 'z': 0}, 'B[3]': {'x': 2, 'y': 7, 'z': 0}, 'B[4]': {'x': 2, 'y': 9, 'z': 0}, 'B[5]': {'x': 2, 'y': 11, 'z': 0}, 'B[6]': {'x': 2, 'y': 13, 'z': 0}, 'B[7]': {'x': 2, 'y': 15, 'z': 0}}
+DEBUG: Generating layout for $procmux$160_CMP0 ($eq)
+DEBUG: input_ports: dict_keys(['A', 'B'])
+DEBUG: layout inputs: {'A[0]': {'x': 0, 'y': 1, 'z': 0}, 'A[1]': {'x': 0, 'y': 3, 'z': 0}, 'A[2]': {'x': 0, 'y': 5, 'z': 0}, 'A[3]': {'x': 0, 'y': 7, 'z': 0}, 'A[4]': {'x': 0, 'y': 9, 'z': 0}, 'A[5]': {'x': 0, 'y': 11, 'z': 0}, 'A[6]': {'x': 0, 'y': 13, 'z': 0}, 'A[7]': {'x': 0, 'y': 15, 'z': 0}, 'B[0]': {'x': 2, 'y': 1, 'z': 0}, 'B[1]': {'x': 2, 'y': 3, 'z': 0}, 'B[2]': {'x': 2, 'y': 5, 'z': 0}, 'B[3]': {'x': 2, 'y': 7, 'z': 0}, 'B[4]': {'x': 2, 'y': 9, 'z': 0}, 'B[5]': {'x': 2, 'y': 11, 'z': 0}, 'B[6]': {'x': 2, 'y': 13, 'z': 0}, 'B[7]': {'x': 2, 'y': 15, 'z': 0}}
+DEBUG: Generating layout for $procmux$161_CMP0 ($eq)
+DEBUG: input_ports: dict_keys(['A', 'B'])
+DEBUG: layout inputs: {'A[0]': {'x': 0, 'y': 1, 'z': 0}, 'A[1]': {'x': 0, 'y': 3, 'z': 0}, 'A[2]': {'x': 0, 'y': 5, 'z': 0}, 'A[3]': {'x': 0, 'y': 7, 'z': 0}, 'A[4]': {'x': 0, 'y': 9, 'z': 0}, 'A[5]': {'x': 0, 'y': 11, 'z': 0}, 'A[6]': {'x': 0, 'y': 13, 'z': 0}, 'A[7]': {'x': 0, 'y': 15, 'z': 0}, 'B[0]': {'x': 2, 'y': 1, 'z': 0}, 'B[1]': {'x': 2, 'y': 3, 'z': 0}, 'B[2]': {'x': 2, 'y': 5, 'z': 0}, 'B[3]': {'x': 2, 'y': 7, 'z': 0}, 'B[4]': {'x': 2, 'y': 9, 'z': 0}, 'B[5]': {'x': 2, 'y': 11, 'z': 0}, 'B[6]': {'x': 2, 'y': 13, 'z': 0}, 'B[7]': {'x': 2, 'y': 15, 'z': 0}}
+DEBUG: Generating layout for $procmux$162_CMP0 ($eq)
+DEBUG: input_ports: dict_keys(['A', 'B'])
+DEBUG: layout inputs: {'A[0]': {'x': 0, 'y': 1, 'z': 0}, 'A[1]': {'x': 0, 'y': 3, 'z': 0}, 'A[2]': {'x': 0, 'y': 5, 'z': 0}, 'A[3]': {'x': 0, 'y': 7, 'z': 0}, 'A[4]': {'x': 0, 'y': 9, 'z': 0}, 'A[5]': {'x': 0, 'y': 11, 'z': 0}, 'A[6]': {'x': 0, 'y': 13, 'z': 0}, 'A[7]': {'x': 0, 'y': 15, 'z': 0}, 'B[0]': {'x': 2, 'y': 1, 'z': 0}, 'B[1]': {'x': 2, 'y': 3, 'z': 0}, 'B[2]': {'x': 2, 'y': 5, 'z': 0}, 'B[3]': {'x': 2, 'y': 7, 'z': 0}, 'B[4]': {'x': 2, 'y': 9, 'z': 0}, 'B[5]': {'x': 2, 'y': 11, 'z': 0}, 'B[6]': {'x': 2, 'y': 13, 'z': 0}, 'B[7]': {'x': 2, 'y': 15, 'z': 0}}
+DEBUG: Generating layout for $procmux$163_CMP0 ($eq)
+DEBUG: input_ports: dict_keys(['A', 'B'])
+DEBUG: layout inputs: {'A[0]': {'x': 0, 'y': 1, 'z': 0}, 'A[1]': {'x': 0, 'y': 3, 'z': 0}, 'A[2]': {'x': 0, 'y': 5, 'z': 0}, 'A[3]': {'x': 0, 'y': 7, 'z': 0}, 'A[4]': {'x': 0, 'y': 9, 'z': 0}, 'A[5]': {'x': 0, 'y': 11, 'z': 0}, 'A[6]': {'x': 0, 'y': 13, 'z': 0}, 'A[7]': {'x': 0, 'y': 15, 'z': 0}, 'B[0]': {'x': 2, 'y': 1, 'z': 0}, 'B[1]': {'x': 2, 'y': 3, 'z': 0}, 'B[2]': {'x': 2, 'y': 5, 'z': 0}, 'B[3]': {'x': 2, 'y': 7, 'z': 0}, 'B[4]': {'x': 2, 'y': 9, 'z': 0}, 'B[5]': {'x': 2, 'y': 11, 'z': 0}, 'B[6]': {'x': 2, 'y': 13, 'z': 0}, 'B[7]': {'x': 2, 'y': 15, 'z': 0}}
+DEBUG: Generating layout for $procmux$164_CMP0 ($eq)
+DEBUG: input_ports: dict_keys(['A', 'B'])
+DEBUG: layout inputs: {'A[0]': {'x': 0, 'y': 1, 'z': 0}, 'A[1]': {'x': 0, 'y': 3, 'z': 0}, 'A[2]': {'x': 0, 'y': 5, 'z': 0}, 'A[3]': {'x': 0, 'y': 7, 'z': 0}, 'A[4]': {'x': 0, 'y': 9, 'z': 0}, 'A[5]': {'x': 0, 'y': 11, 'z': 0}, 'A[6]': {'x': 0, 'y': 13, 'z': 0}, 'A[7]': {'x': 0, 'y': 15, 'z': 0}, 'B[0]': {'x': 2, 'y': 1, 'z': 0}, 'B[1]': {'x': 2, 'y': 3, 'z': 0}, 'B[2]': {'x': 2, 'y': 5, 'z': 0}, 'B[3]': {'x': 2, 'y': 7, 'z': 0}, 'B[4]': {'x': 2, 'y': 9, 'z': 0}, 'B[5]': {'x': 2, 'y': 11, 'z': 0}, 'B[6]': {'x': 2, 'y': 13, 'z': 0}, 'B[7]': {'x': 2, 'y': 15, 'z': 0}}
+DEBUG: Generating layout for $procmux$165_CMP0 ($eq)
+DEBUG: input_ports: dict_keys(['A', 'B'])
+DEBUG: layout inputs: {'A[0]': {'x': 0, 'y': 1, 'z': 0}, 'A[1]': {'x': 0, 'y': 3, 'z': 0}, 'A[2]': {'x': 0, 'y': 5, 'z': 0}, 'A[3]': {'x': 0, 'y': 7, 'z': 0}, 'A[4]': {'x': 0, 'y': 9, 'z': 0}, 'A[5]': {'x': 0, 'y': 11, 'z': 0}, 'A[6]': {'x': 0, 'y': 13, 'z': 0}, 'A[7]': {'x': 0, 'y': 15, 'z': 0}, 'B[0]': {'x': 2, 'y': 1, 'z': 0}, 'B[1]': {'x': 2, 'y': 3, 'z': 0}, 'B[2]': {'x': 2, 'y': 5, 'z': 0}, 'B[3]': {'x': 2, 'y': 7, 'z': 0}, 'B[4]': {'x': 2, 'y': 9, 'z': 0}, 'B[5]': {'x': 2, 'y': 11, 'z': 0}, 'B[6]': {'x': 2, 'y': 13, 'z': 0}, 'B[7]': {'x': 2, 'y': 15, 'z': 0}}
+DEBUG: Generating layout for $procmux$166_CMP0 ($eq)
+DEBUG: input_ports: dict_keys(['A', 'B'])
+DEBUG: layout inputs: {'A[0]': {'x': 0, 'y': 1, 'z': 0}, 'A[1]': {'x': 0, 'y': 3, 'z': 0}, 'B[0]': {'x': 2, 'y': 1, 'z': 0}, 'B[1]': {'x': 2, 'y': 3, 'z': 0}}
+DEBUG: Generating layout for $procmux$170_CMP0 ($eq)
+DEBUG: input_ports: dict_keys(['A', 'B'])
+DEBUG: layout inputs: {'A[0]': {'x': 0, 'y': 1, 'z': 0}, 'A[1]': {'x': 0, 'y': 3, 'z': 0}, 'A[2]': {'x': 0, 'y': 5, 'z': 0}, 'A[3]': {'x': 0, 'y': 7, 'z': 0}, 'A[4]': {'x': 0, 'y': 9, 'z': 0}, 'A[5]': {'x': 0, 'y': 11, 'z': 0}, 'A[6]': {'x': 0, 'y': 13, 'z': 0}, 'A[7]': {'x': 0, 'y': 15, 'z': 0}, 'B[0]': {'x': 2, 'y': 1, 'z': 0}, 'B[1]': {'x': 2, 'y': 3, 'z': 0}, 'B[2]': {'x': 2, 'y': 5, 'z': 0}, 'B[3]': {'x': 2, 'y': 7, 'z': 0}, 'B[4]': {'x': 2, 'y': 9, 'z': 0}, 'B[5]': {'x': 2, 'y': 11, 'z': 0}, 'B[6]': {'x': 2, 'y': 13, 'z': 0}, 'B[7]': {'x': 2, 'y': 15, 'z': 0}}
+DEBUG: Generating layout for $procmux$171_CMP0 ($eq)
+DEBUG: input_ports: dict_keys(['A', 'B'])
+DEBUG: layout inputs: {'A[0]': {'x': 0, 'y': 1, 'z': 0}, 'A[1]': {'x': 0, 'y': 3, 'z': 0}, 'A[2]': {'x': 0, 'y': 5, 'z': 0}, 'A[3]': {'x': 0, 'y': 7, 'z': 0}, 'A[4]': {'x': 0, 'y': 9, 'z': 0}, 'A[5]': {'x': 0, 'y': 11, 'z': 0}, 'A[6]': {'x': 0, 'y': 13, 'z': 0}, 'A[7]': {'x': 0, 'y': 15, 'z': 0}, 'B[0]': {'x': 2, 'y': 1, 'z': 0}, 'B[1]': {'x': 2, 'y': 3, 'z': 0}, 'B[2]': {'x': 2, 'y': 5, 'z': 0}, 'B[3]': {'x': 2, 'y': 7, 'z': 0}, 'B[4]': {'x': 2, 'y': 9, 'z': 0}, 'B[5]': {'x': 2, 'y': 11, 'z': 0}, 'B[6]': {'x': 2, 'y': 13, 'z': 0}, 'B[7]': {'x': 2, 'y': 15, 'z': 0}}
+DEBUG: Generating layout for $procmux$174_CMP0 ($eq)
+DEBUG: input_ports: dict_keys(['A', 'B'])
+DEBUG: layout inputs: {'A[0]': {'x': 0, 'y': 1, 'z': 0}, 'A[1]': {'x': 0, 'y': 3, 'z': 0}, 'B[0]': {'x': 2, 'y': 1, 'z': 0}, 'B[1]': {'x': 2, 'y': 3, 'z': 0}}
+DEBUG: Generating layout for $procmux$181_CMP0 ($eq)
+DEBUG: input_ports: dict_keys(['A', 'B'])
+DEBUG: layout inputs: {'A[0]': {'x': 0, 'y': 1, 'z': 0}, 'A[1]': {'x': 0, 'y': 3, 'z': 0}, 'A[2]': {'x': 0, 'y': 5, 'z': 0}, 'A[3]': {'x': 0, 'y': 7, 'z': 0}, 'A[4]': {'x': 0, 'y': 9, 'z': 0}, 'A[5]': {'x': 0, 'y': 11, 'z': 0}, 'A[6]': {'x': 0, 'y': 13, 'z': 0}, 'A[7]': {'x': 0, 'y': 15, 'z': 0}, 'B[0]': {'x': 2, 'y': 1, 'z': 0}, 'B[1]': {'x': 2, 'y': 3, 'z': 0}, 'B[2]': {'x': 2, 'y': 5, 'z': 0}, 'B[3]': {'x': 2, 'y': 7, 'z': 0}, 'B[4]': {'x': 2, 'y': 9, 'z': 0}, 'B[5]': {'x': 2, 'y': 11, 'z': 0}, 'B[6]': {'x': 2, 'y': 13, 'z': 0}, 'B[7]': {'x': 2, 'y': 15, 'z': 0}}
+DEBUG: Generating layout for $procmux$183_CMP0 ($eq)
+DEBUG: input_ports: dict_keys(['A', 'B'])
+DEBUG: layout inputs: {'A[0]': {'x': 0, 'y': 1, 'z': 0}, 'A[1]': {'x': 0, 'y': 3, 'z': 0}, 'B[0]': {'x': 2, 'y': 1, 'z': 0}, 'B[1]': {'x': 2, 'y': 3, 'z': 0}}
+
+Found 111 nodes:
+
+Node(name='A', type='InputPort', bbox=(0, 0, 0, 2, 10, 2), in=[], out=['out'])
+Node(name='B', type='InputPort', bbox=(0, 0, 0, 2, 10, 2), in=[], out=['out'])
+Node(name='S', type='InputPort', bbox=(0, 0, 0, 2, 10, 2), in=[], out=['out'])
+Node(name='clk', type='InputPort', bbox=(0, 0, 0, 2, 10, 2), in=[], out=['out'])
+Node(name='Y', type='OutputPort', bbox=(0, 0, 0, 2, 10, 2), in=['in'], out=[])
+Node(name='$add$test.v:135$4', type='RS_ADD8', bbox=(0, 0, 0, 5, 16, 8), in=['A[0]', 'A[1]', 'A[2]', 'A[3]', 'A[4]', 'A[5]', 'A[6]', 'A[7]', 'B[0]', 'B[1]', 'B[2]', 'B[3]', 'B[4]', 'B[5]', 'B[6]', 'B[7]'], out=['Y[0]', 'Y[1]', 'Y[2]', 'Y[3]', 'Y[4]', 'Y[5]', 'Y[6]', 'Y[7]'])
+Node(name='$add$test.v:177$16', type='RS_ADD8', bbox=(0, 0, 0, 5, 16, 8), in=['A[0]', 'A[1]', 'A[2]', 'A[3]', 'A[4]', 'A[5]', 'A[6]', 'A[7]'], out=['Y[0]', 'Y[1]', 'Y[2]', 'Y[3]', 'Y[4]', 'Y[5]', 'Y[6]', 'Y[7]'])
+Node(name='$and$test.v:147$8', type='RS_AND8', bbox=(0, 0, 0, 4, 16, 8), in=['A[0]', 'A[1]', 'A[2]', 'A[3]', 'A[4]', 'A[5]', 'A[6]', 'A[7]', 'B[0]', 'B[1]', 'B[2]', 'B[3]', 'B[4]', 'B[5]', 'B[6]', 'B[7]'], out=['Y[0]', 'Y[1]', 'Y[2]', 'Y[3]', 'Y[4]', 'Y[5]', 'Y[6]', 'Y[7]'])
+Node(name='$auto$ff.cc:337:slice$199', type='RS_DFF8', bbox=(0, 0, 0, 4, 16, 9), in=['C', 'D[0]', 'D[1]', 'D[2]', 'D[3]', 'D[4]', 'D[5]', 'D[6]', 'D[7]'], out=['Q[0]', 'Q[1]', 'Q[2]', 'Q[3]', 'Q[4]', 'Q[5]', 'Q[6]', 'Q[7]'])
+Node(name='$auto$ff.cc:337:slice$208', type='RS_DFF8', bbox=(0, 0, 0, 4, 16, 9), in=['C', 'D[0]', 'D[1]', 'D[2]', 'D[3]', 'D[4]', 'D[5]', 'D[6]', 'D[7]'], out=['Q[0]', 'Q[1]', 'Q[2]', 'Q[3]', 'Q[4]', 'Q[5]', 'Q[6]', 'Q[7]'])
+Node(name='$auto$ff.cc:337:slice$211', type='$dffe', bbox=(0, 0, 0, 7, 2, 2), in=['CLK', 'D', 'EN'], out=['Q'])
+Node(name='$auto$ff.cc:337:slice$220', type='RS_DFF8', bbox=(0, 0, 0, 4, 16, 9), in=['C', 'D[0]', 'D[1]', 'D[2]', 'D[3]', 'D[4]', 'D[5]', 'D[6]', 'D[7]'], out=['Q[0]', 'Q[1]', 'Q[2]', 'Q[3]', 'Q[4]', 'Q[5]', 'Q[6]', 'Q[7]'])
+Node(name='$auto$ff.cc:337:slice$221', type='RS_DFF8', bbox=(0, 0, 0, 4, 16, 9), in=['C', 'D[0]', 'D[1]', 'D[2]', 'D[3]', 'D[4]', 'D[5]', 'D[6]', 'D[7]'], out=['Q[0]', 'Q[1]', 'Q[2]', 'Q[3]', 'Q[4]', 'Q[5]', 'Q[6]', 'Q[7]'])
+Node(name='$auto$ff.cc:337:slice$224', type='RS_DFF8', bbox=(0, 0, 0, 4, 16, 9), in=['C', 'D[0]', 'D[1]', 'D[2]', 'D[3]', 'D[4]', 'D[5]', 'D[6]', 'D[7]'], out=['Q[0]', 'Q[1]', 'Q[2]', 'Q[3]', 'Q[4]', 'Q[5]', 'Q[6]', 'Q[7]'])
+Node(name='$auto$ff.cc:337:slice$225', type='RS_DFF8', bbox=(0, 0, 0, 4, 16, 9), in=['C', 'D[0]', 'D[1]', 'D[2]', 'D[3]', 'D[4]', 'D[5]', 'D[6]', 'D[7]'], out=['Q[0]', 'Q[1]', 'Q[2]', 'Q[3]', 'Q[4]', 'Q[5]', 'Q[6]', 'Q[7]'])
+Node(name='$auto$opt_dff.cc:248:make_patterns_logic$201', type='$ne', bbox=(0, 0, 0, 5, 6, 2), in=['A[0]', 'A[1]', 'A[2]'], out=['Y'])
+Node(name='$auto$opt_dff.cc:248:make_patterns_logic$203', type='$ne', bbox=(0, 0, 0, 5, 16, 2), in=['A[0]', 'A[1]', 'A[2]', 'A[3]', 'A[4]', 'A[5]', 'A[6]', 'A[7]'], out=['Y'])
+Node(name='$auto$opt_dff.cc:248:make_patterns_logic$205', type='$reduce_bool', bbox=(0, 0, 0, 4, 4, 2), in=['A[0]', 'A[1]'], out=['Y'])
+Node(name='$auto$opt_dff.cc:248:make_patterns_logic$213', type='$ne', bbox=(0, 0, 0, 5, 4, 2), in=['A[0]', 'A[1]'], out=['Y'])
+Node(name='$auto$opt_dff.cc:248:make_patterns_logic$227', type='$reduce_bool', bbox=(0, 0, 0, 4, 4, 2), in=['A[0]', 'A[1]'], out=['Y'])
+Node(name='$auto$opt_dff.cc:248:make_patterns_logic$229', type='$ne', bbox=(0, 0, 0, 5, 6, 2), in=['A[0]', 'A[1]', 'A[2]'], out=['Y'])
+Node(name='$auto$opt_dff.cc:248:make_patterns_logic$231', type='$ne', bbox=(0, 0, 0, 5, 6, 2), in=['A[0]', 'A[1]', 'A[2]'], out=['Y'])
+Node(name='$auto$opt_dff.cc:273:make_patterns_logic$207', type='$reduce_and', bbox=(0, 0, 0, 4, 6, 2), in=['A[0]', 'A[1]', 'A[2]'], out=['Y'])
+Node(name='$auto$opt_dff.cc:273:make_patterns_logic$210', type='$reduce_and', bbox=(0, 0, 0, 4, 4, 2), in=['A[0]', 'A[1]'], out=['Y'])
+Node(name='$auto$opt_dff.cc:273:make_patterns_logic$219', type='$reduce_and', bbox=(0, 0, 0, 4, 6, 2), in=['A[0]', 'A[1]', 'A[2]'], out=['Y'])
+Node(name='$auto$opt_dff.cc:273:make_patterns_logic$223', type='$reduce_and', bbox=(0, 0, 0, 4, 6, 2), in=['A[0]', 'A[1]', 'A[2]'], out=['Y'])
+Node(name='$auto$opt_dff.cc:273:make_patterns_logic$233', type='$reduce_and', bbox=(0, 0, 0, 4, 6, 2), in=['A[0]', 'A[1]', 'A[2]'], out=['Y'])
+Node(name='$auto$opt_reduce.cc:131:opt_pmux$197', type='$reduce_or', bbox=(0, 0, 0, 4, 4, 2), in=['A[0]', 'A[1]'], out=['Y'])
+Node(name='$auto$pmuxtree.cc:35:or_generator$301', type='$or', bbox=(0, 0, 0, 5, 2, 2), in=['A', 'B'], out=['Y'])
+Node(name='$auto$pmuxtree.cc:35:or_generator$325', type='$or', bbox=(0, 0, 0, 5, 2, 2), in=['A', 'B'], out=['Y'])
+Node(name='$auto$pmuxtree.cc:37:or_generator$305', type='$reduce_or', bbox=(0, 0, 0, 4, 6, 2), in=['A[0]', 'A[1]', 'A[2]'], out=['Y'])
+Node(name='$auto$pmuxtree.cc:65:recursive_mux_generator$271', type='MUX', bbox=(0, 0, 0, 4, 2, 3), in=['A', 'B', 'S'], out=['Y'])
+Node(name='$auto$pmuxtree.cc:65:recursive_mux_generator$273', type='MUX', bbox=(0, 0, 0, 4, 2, 3), in=['A', 'B', 'S'], out=['Y'])
+Node(name='$auto$pmuxtree.cc:65:recursive_mux_generator$275', type='MUX', bbox=(0, 0, 0, 4, 2, 3), in=['A', 'B', 'S'], out=['Y'])
+Node(name='$auto$pmuxtree.cc:65:recursive_mux_generator$277', type='MUX', bbox=(0, 0, 0, 4, 2, 3), in=['A', 'B', 'S'], out=['Y'])
+Node(name='$auto$pmuxtree.cc:65:recursive_mux_generator$279', type='MUX', bbox=(0, 0, 0, 4, 2, 3), in=['A', 'B', 'S'], out=['Y'])
+Node(name='$auto$pmuxtree.cc:65:recursive_mux_generator$283', type='MUX', bbox=(0, 0, 0, 4, 2, 3), in=['A', 'B', 'S'], out=['Y'])
+Node(name='$auto$pmuxtree.cc:65:recursive_mux_generator$287', type='MUX', bbox=(0, 0, 0, 4, 2, 3), in=['A', 'B', 'S'], out=['Y'])
+Node(name='$auto$pmuxtree.cc:65:recursive_mux_generator$289', type='RS_MUX8', bbox=(0, 0, 0, 4, 16, 3), in=['A[0]', 'A[1]', 'A[2]', 'A[3]', 'A[4]', 'A[5]', 'A[6]', 'A[7]', 'B[0]', 'B[1]', 'B[2]', 'B[3]', 'B[4]', 'B[5]', 'B[6]', 'B[7]', 'S'], out=['Y[0]', 'Y[1]', 'Y[2]', 'Y[3]', 'Y[4]', 'Y[5]', 'Y[6]', 'Y[7]'])
+Node(name='$auto$pmuxtree.cc:65:recursive_mux_generator$291', type='RS_MUX8', bbox=(0, 0, 0, 4, 16, 3), in=['A[0]', 'A[1]', 'A[2]', 'A[3]', 'A[4]', 'A[5]', 'A[6]', 'A[7]', 'B[0]', 'B[1]', 'B[2]', 'B[3]', 'B[4]', 'B[5]', 'B[6]', 'B[7]', 'S'], out=['Y[0]', 'Y[1]', 'Y[2]', 'Y[3]', 'Y[4]', 'Y[5]', 'Y[6]', 'Y[7]'])
+Node(name='$auto$pmuxtree.cc:65:recursive_mux_generator$293', type='RS_MUX8', bbox=(0, 0, 0, 4, 16, 3), in=['A[0]', 'A[1]', 'A[2]', 'A[3]', 'A[4]', 'A[5]', 'A[6]', 'A[7]', 'B[0]', 'B[1]', 'B[2]', 'B[3]', 'B[4]', 'B[5]', 'B[6]', 'B[7]', 'S'], out=['Y[0]', 'Y[1]', 'Y[2]', 'Y[3]', 'Y[4]', 'Y[5]', 'Y[6]', 'Y[7]'])
+Node(name='$auto$pmuxtree.cc:65:recursive_mux_generator$295', type='RS_MUX8', bbox=(0, 0, 0, 4, 16, 3), in=['A[0]', 'A[1]', 'A[2]', 'A[3]', 'A[4]', 'A[5]', 'A[6]', 'A[7]', 'B[0]', 'B[1]', 'B[2]', 'B[3]', 'B[4]', 'B[5]', 'B[6]', 'B[7]', 'S'], out=['Y[0]', 'Y[1]', 'Y[2]', 'Y[3]', 'Y[4]', 'Y[5]', 'Y[6]', 'Y[7]'])
+Node(name='$auto$pmuxtree.cc:65:recursive_mux_generator$297', type='RS_MUX8', bbox=(0, 0, 0, 4, 16, 3), in=['A[0]', 'A[1]', 'A[2]', 'A[3]', 'A[4]', 'A[5]', 'A[6]', 'A[7]', 'B[0]', 'B[1]', 'B[2]', 'B[3]', 'B[4]', 'B[5]', 'B[6]', 'B[7]', 'S'], out=['Y[0]', 'Y[1]', 'Y[2]', 'Y[3]', 'Y[4]', 'Y[5]', 'Y[6]', 'Y[7]'])
+Node(name='$auto$pmuxtree.cc:65:recursive_mux_generator$299', type='RS_MUX8', bbox=(0, 0, 0, 4, 16, 3), in=['A[0]', 'A[1]', 'A[2]', 'A[3]', 'A[4]', 'A[5]', 'A[6]', 'A[7]', 'B[0]', 'B[1]', 'B[2]', 'B[3]', 'B[4]', 'B[5]', 'B[6]', 'B[7]', 'S'], out=['Y[0]', 'Y[1]', 'Y[2]', 'Y[3]', 'Y[4]', 'Y[5]', 'Y[6]', 'Y[7]'])
+Node(name='$auto$pmuxtree.cc:65:recursive_mux_generator$303', type='RS_MUX8', bbox=(0, 0, 0, 4, 16, 3), in=['A[0]', 'A[1]', 'A[2]', 'A[3]', 'A[4]', 'A[5]', 'A[6]', 'A[7]', 'B[0]', 'B[1]', 'B[2]', 'B[3]', 'B[4]', 'B[5]', 'B[6]', 'B[7]', 'S'], out=['Y[0]', 'Y[1]', 'Y[2]', 'Y[3]', 'Y[4]', 'Y[5]', 'Y[6]', 'Y[7]'])
+Node(name='$auto$pmuxtree.cc:65:recursive_mux_generator$307', type='RS_MUX8', bbox=(0, 0, 0, 4, 16, 3), in=['A[0]', 'A[1]', 'A[2]', 'A[3]', 'A[4]', 'A[5]', 'A[6]', 'A[7]', 'B[0]', 'B[1]', 'B[2]', 'B[3]', 'B[4]', 'B[5]', 'B[6]', 'B[7]', 'S'], out=['Y[0]', 'Y[1]', 'Y[2]', 'Y[3]', 'Y[4]', 'Y[5]', 'Y[6]', 'Y[7]'])
+Node(name='$auto$pmuxtree.cc:65:recursive_mux_generator$309', type='RS_MUX8', bbox=(0, 0, 0, 4, 16, 3), in=['A[0]', 'A[1]', 'A[2]', 'A[3]', 'A[4]', 'A[5]', 'A[6]', 'A[7]', 'B[0]', 'B[1]', 'B[2]', 'B[3]', 'B[4]', 'B[5]', 'B[6]', 'B[7]', 'S'], out=['Y[0]', 'Y[1]', 'Y[2]', 'Y[3]', 'Y[4]', 'Y[5]', 'Y[6]', 'Y[7]'])
+Node(name='$auto$pmuxtree.cc:65:recursive_mux_generator$311', type='RS_MUX8', bbox=(0, 0, 0, 4, 16, 3), in=['A[0]', 'A[1]', 'A[2]', 'A[3]', 'A[4]', 'A[5]', 'A[6]', 'A[7]', 'B[0]', 'B[1]', 'B[2]', 'B[3]', 'B[4]', 'B[5]', 'B[6]', 'B[7]', 'S'], out=['Y[0]', 'Y[1]', 'Y[2]', 'Y[3]', 'Y[4]', 'Y[5]', 'Y[6]', 'Y[7]'])
+Node(name='$auto$pmuxtree.cc:65:recursive_mux_generator$317', type='RS_MUX8', bbox=(0, 0, 0, 4, 16, 3), in=['B[0]', 'B[1]', 'B[2]', 'B[3]', 'B[4]', 'B[5]', 'B[6]', 'B[7]', 'S'], out=['Y[0]', 'Y[1]', 'Y[2]', 'Y[3]', 'Y[4]', 'Y[5]', 'Y[6]', 'Y[7]'])
+Node(name='$auto$pmuxtree.cc:65:recursive_mux_generator$319', type='RS_MUX8', bbox=(0, 0, 0, 4, 16, 3), in=['A[0]', 'A[1]', 'A[2]', 'A[3]', 'A[4]', 'A[5]', 'A[6]', 'A[7]', 'B[0]', 'B[1]', 'B[2]', 'B[3]', 'B[4]', 'B[5]', 'B[6]', 'B[7]', 'S'], out=['Y[0]', 'Y[1]', 'Y[2]', 'Y[3]', 'Y[4]', 'Y[5]', 'Y[6]', 'Y[7]'])
+Node(name='$auto$pmuxtree.cc:65:recursive_mux_generator$321', type='$mux', bbox=(0, 0, 0, 7, 4, 2), in=['S'], out=['Y[0]', 'Y[1]'])
+Node(name='$auto$pmuxtree.cc:65:recursive_mux_generator$323', type='$mux', bbox=(0, 0, 0, 7, 4, 2), in=['B[0]', 'B[1]', 'S'], out=['Y[0]', 'Y[1]'])
+Node(name='$auto$pmuxtree.cc:65:recursive_mux_generator$327', type='$mux', bbox=(0, 0, 0, 7, 4, 2), in=['A[0]', 'A[1]', 'B[0]', 'B[1]', 'S'], out=['Y[0]', 'Y[1]'])
+Node(name='$eq$test.v:130$3', type='$logic_not', bbox=(0, 0, 0, 4, 16, 2), in=['A[0]', 'A[1]', 'A[2]', 'A[3]', 'A[4]', 'A[5]', 'A[6]', 'A[7]'], out=['Y'])
+Node(name='$eq$test.v:137$5', type='$logic_not', bbox=(0, 0, 0, 4, 16, 2), in=['A[0]', 'A[1]', 'A[2]', 'A[3]', 'A[4]', 'A[5]', 'A[6]', 'A[7]'], out=['Y'])
+Node(name='$eq$test.v:143$7', type='$logic_not', bbox=(0, 0, 0, 4, 16, 2), in=['A[0]', 'A[1]', 'A[2]', 'A[3]', 'A[4]', 'A[5]', 'A[6]', 'A[7]'], out=['Y'])
+Node(name='$eq$test.v:149$9', type='$logic_not', bbox=(0, 0, 0, 4, 16, 2), in=['A[0]', 'A[1]', 'A[2]', 'A[3]', 'A[4]', 'A[5]', 'A[6]', 'A[7]'], out=['Y'])
+Node(name='$eq$test.v:155$11', type='$logic_not', bbox=(0, 0, 0, 4, 16, 2), in=['A[0]', 'A[1]', 'A[2]', 'A[3]', 'A[4]', 'A[5]', 'A[6]', 'A[7]'], out=['Y'])
+Node(name='$eq$test.v:161$13', type='$logic_not', bbox=(0, 0, 0, 4, 16, 2), in=['A[0]', 'A[1]', 'A[2]', 'A[3]', 'A[4]', 'A[5]', 'A[6]', 'A[7]'], out=['Y'])
+Node(name='$eq$test.v:167$15', type='$logic_not', bbox=(0, 0, 0, 4, 16, 2), in=['A[0]', 'A[1]', 'A[2]', 'A[3]', 'A[4]', 'A[5]', 'A[6]', 'A[7]'], out=['Y'])
+Node(name='$eq$test.v:185$17', type='$logic_not', bbox=(0, 0, 0, 4, 16, 2), in=['A[0]', 'A[1]', 'A[2]', 'A[3]', 'A[4]', 'A[5]', 'A[6]', 'A[7]'], out=['Y'])
+Node(name='$eq$test.v:189$18', type='$eq', bbox=(0, 0, 0, 5, 16, 2), in=['A[0]', 'A[1]', 'A[2]', 'A[3]', 'A[4]', 'A[5]', 'A[6]', 'A[7]'], out=['Y'])
+Node(name='$eq$test.v:190$19', type='$eq', bbox=(0, 0, 0, 5, 16, 2), in=['A[0]', 'A[1]', 'A[2]', 'A[3]', 'A[4]', 'A[5]', 'A[6]', 'A[7]'], out=['Y'])
+Node(name='$eq$test.v:191$20', type='$eq', bbox=(0, 0, 0, 5, 16, 2), in=['A[0]', 'A[1]', 'A[2]', 'A[3]', 'A[4]', 'A[5]', 'A[6]', 'A[7]'], out=['Y'])
+Node(name='$eq$test.v:199$21', type='$eq', bbox=(0, 0, 0, 5, 16, 2), in=['A[0]', 'A[1]', 'A[2]', 'A[3]', 'A[4]', 'A[5]', 'A[6]', 'A[7]'], out=['Y'])
+Node(name='$logic_and$test.v:225$26', type='$logic_and', bbox=(0, 0, 0, 5, 2, 2), in=['A', 'B'], out=['Y'])
+Node(name='$ne$test.v:225$25', type='$ne', bbox=(0, 0, 0, 5, 16, 2), in=['A[0]', 'A[1]', 'A[2]', 'A[3]', 'A[4]', 'A[5]', 'A[6]', 'A[7]'], out=['Y'])
+Node(name='$or$test.v:153$10', type='RS_OR8', bbox=(0, 0, 0, 4, 16, 8), in=['A[0]', 'A[1]', 'A[2]', 'A[3]', 'A[4]', 'A[5]', 'A[6]', 'A[7]', 'B[0]', 'B[1]', 'B[2]', 'B[3]', 'B[4]', 'B[5]', 'B[6]', 'B[7]'], out=['Y[0]', 'Y[1]', 'Y[2]', 'Y[3]', 'Y[4]', 'Y[5]', 'Y[6]', 'Y[7]'])
+Node(name='$procdff$189', type='$dff', bbox=(0, 0, 0, 5, 4, 2), in=['CLK', 'D[0]', 'D[1]'], out=['Q[0]', 'Q[1]'])
+Node(name='$procmux$112', type='MUX', bbox=(0, 0, 0, 4, 2, 3), in=['B', 'S'], out=['Y'])
+Node(name='$procmux$137_CMP0', type='$eq', bbox=(0, 0, 0, 5, 16, 2), in=['A[0]', 'A[1]', 'A[2]', 'A[3]', 'A[4]', 'A[5]', 'A[6]', 'A[7]'], out=['Y'])
+Node(name='$procmux$144', type='RS_MUX8', bbox=(0, 0, 0, 4, 16, 3), in=['A[0]', 'A[1]', 'A[2]', 'A[3]', 'A[4]', 'A[5]', 'A[6]', 'A[7]', 'B[0]', 'B[1]', 'B[2]', 'B[3]', 'B[4]', 'B[5]', 'B[6]', 'B[7]', 'S'], out=['Y[0]', 'Y[1]', 'Y[2]', 'Y[3]', 'Y[4]', 'Y[5]', 'Y[6]', 'Y[7]'])
+Node(name='$procmux$147', type='RS_MUX8', bbox=(0, 0, 0, 4, 16, 3), in=['A[0]', 'A[1]', 'A[2]', 'A[3]', 'A[4]', 'A[5]', 'A[6]', 'A[7]', 'B[0]', 'B[1]', 'B[2]', 'B[3]', 'B[4]', 'B[5]', 'B[6]', 'B[7]', 'S'], out=['Y[0]', 'Y[1]', 'Y[2]', 'Y[3]', 'Y[4]', 'Y[5]', 'Y[6]', 'Y[7]'])
+Node(name='$procmux$150', type='RS_MUX8', bbox=(0, 0, 0, 4, 16, 3), in=['A[0]', 'A[1]', 'A[2]', 'A[3]', 'A[4]', 'A[5]', 'A[6]', 'A[7]', 'B[0]', 'B[1]', 'B[2]', 'B[3]', 'B[4]', 'B[5]', 'B[6]', 'B[7]', 'S'], out=['Y[0]', 'Y[1]', 'Y[2]', 'Y[3]', 'Y[4]', 'Y[5]', 'Y[6]', 'Y[7]'])
+Node(name='$procmux$153_CMP0', type='$eq', bbox=(0, 0, 0, 5, 16, 2), in=['A[0]', 'A[1]', 'A[2]', 'A[3]', 'A[4]', 'A[5]', 'A[6]', 'A[7]'], out=['Y'])
+Node(name='$procmux$154_CMP0', type='$eq', bbox=(0, 0, 0, 5, 16, 2), in=['A[0]', 'A[1]', 'A[2]', 'A[3]', 'A[4]', 'A[5]', 'A[6]', 'A[7]'], out=['Y'])
+Node(name='$procmux$159_CMP0', type='$eq', bbox=(0, 0, 0, 5, 16, 2), in=['A[0]', 'A[1]', 'A[2]', 'A[3]', 'A[4]', 'A[5]', 'A[6]', 'A[7]'], out=['Y'])
+Node(name='$procmux$160_CMP0', type='$eq', bbox=(0, 0, 0, 5, 16, 2), in=['A[0]', 'A[1]', 'A[2]', 'A[3]', 'A[4]', 'A[5]', 'A[6]', 'A[7]'], out=['Y'])
+Node(name='$procmux$161_CMP0', type='$eq', bbox=(0, 0, 0, 5, 16, 2), in=['A[0]', 'A[1]', 'A[2]', 'A[3]', 'A[4]', 'A[5]', 'A[6]', 'A[7]'], out=['Y'])
+Node(name='$procmux$162_CMP0', type='$eq', bbox=(0, 0, 0, 5, 16, 2), in=['A[0]', 'A[1]', 'A[2]', 'A[3]', 'A[4]', 'A[5]', 'A[6]', 'A[7]'], out=['Y'])
+Node(name='$procmux$163_CMP0', type='$eq', bbox=(0, 0, 0, 5, 16, 2), in=['A[0]', 'A[1]', 'A[2]', 'A[3]', 'A[4]', 'A[5]', 'A[6]', 'A[7]'], out=['Y'])
+Node(name='$procmux$164_CMP0', type='$eq', bbox=(0, 0, 0, 5, 16, 2), in=['A[0]', 'A[1]', 'A[2]', 'A[3]', 'A[4]', 'A[5]', 'A[6]', 'A[7]'], out=['Y'])
+Node(name='$procmux$165_CMP0', type='$eq', bbox=(0, 0, 0, 5, 16, 2), in=['A[0]', 'A[1]', 'A[2]', 'A[3]', 'A[4]', 'A[5]', 'A[6]', 'A[7]'], out=['Y'])
+Node(name='$procmux$166_CMP0', type='$eq', bbox=(0, 0, 0, 5, 4, 2), in=['A[0]', 'A[1]'], out=['Y'])
+Node(name='$procmux$167', type='RS_MUX8', bbox=(0, 0, 0, 4, 16, 3), in=['B[0]', 'B[1]', 'B[2]', 'B[3]', 'B[4]', 'B[5]', 'B[6]', 'B[7]', 'S'], out=['Y[0]', 'Y[1]', 'Y[2]', 'Y[3]', 'Y[4]', 'Y[5]', 'Y[6]', 'Y[7]'])
+Node(name='$procmux$170_CMP0', type='$eq', bbox=(0, 0, 0, 5, 16, 2), in=['A[0]', 'A[1]', 'A[2]', 'A[3]', 'A[4]', 'A[5]', 'A[6]', 'A[7]'], out=['Y'])
+Node(name='$procmux$171_CMP0', type='$eq', bbox=(0, 0, 0, 5, 16, 2), in=['A[0]', 'A[1]', 'A[2]', 'A[3]', 'A[4]', 'A[5]', 'A[6]', 'A[7]'], out=['Y'])
+Node(name='$procmux$174_CMP0', type='$eq', bbox=(0, 0, 0, 5, 4, 2), in=['A[0]', 'A[1]'], out=['Y'])
+Node(name='$procmux$175_CMP0', type='$logic_not', bbox=(0, 0, 0, 4, 4, 2), in=['A[0]', 'A[1]'], out=['Y'])
+Node(name='$procmux$181_CMP0', type='$eq', bbox=(0, 0, 0, 5, 16, 2), in=['A[0]', 'A[1]', 'A[2]', 'A[3]', 'A[4]', 'A[5]', 'A[6]', 'A[7]'], out=['Y'])
+Node(name='$procmux$183_CMP0', type='$eq', bbox=(0, 0, 0, 5, 4, 2), in=['A[0]', 'A[1]'], out=['Y'])
+Node(name='$procmux$34', type='MUX', bbox=(0, 0, 0, 4, 2, 3), in=['S'], out=['Y'])
+Node(name='$procmux$40', type='RS_MUX8', bbox=(0, 0, 0, 4, 16, 3), in=['B[0]', 'B[1]', 'B[2]', 'B[3]', 'B[4]', 'B[5]', 'B[6]', 'B[7]', 'S'], out=['Y[0]', 'Y[1]', 'Y[2]', 'Y[3]', 'Y[4]', 'Y[5]', 'Y[6]', 'Y[7]'])
+Node(name='$procmux$46', type='RS_MUX8', bbox=(0, 0, 0, 4, 16, 3), in=['A[0]', 'A[1]', 'A[2]', 'A[3]', 'A[4]', 'A[5]', 'A[6]', 'A[7]', 'B[0]', 'B[1]', 'B[2]', 'B[3]', 'B[4]', 'B[5]', 'B[6]', 'B[7]', 'S'], out=['Y[0]', 'Y[1]', 'Y[2]', 'Y[3]', 'Y[4]', 'Y[5]', 'Y[6]', 'Y[7]'])
+Node(name='$procmux$52', type='RS_MUX8', bbox=(0, 0, 0, 4, 16, 3), in=['B[0]', 'B[1]', 'B[2]', 'B[3]', 'B[4]', 'B[5]', 'B[6]', 'B[7]', 'S'], out=['Y[0]', 'Y[1]', 'Y[2]', 'Y[3]', 'Y[4]', 'Y[5]', 'Y[6]', 'Y[7]'])
+Node(name='$procmux$62', type='MUX', bbox=(0, 0, 0, 4, 2, 3), in=['B', 'S'], out=['Y'])
+Node(name='$procmux$65', type='RS_MUX8', bbox=(0, 0, 0, 4, 16, 3), in=['B[0]', 'B[1]', 'B[2]', 'B[3]', 'B[4]', 'B[5]', 'B[6]', 'B[7]', 'S'], out=['Y[0]', 'Y[1]', 'Y[2]', 'Y[3]', 'Y[4]', 'Y[5]', 'Y[6]', 'Y[7]'])
+Node(name='$procmux$91', type='$mux', bbox=(0, 0, 0, 7, 4, 2), in=['S'], out=['Y[0]', 'Y[1]'])
+Node(name='$procmux$92_ANY', type='$reduce_or', bbox=(0, 0, 0, 4, 10, 2), in=['A[0]', 'A[1]', 'A[2]', 'A[3]', 'A[4]'], out=['Y'])
+Node(name='$shl$test.v:165$14', type='RS_SHL8', bbox=(0, 0, 0, 5, 16, 8), in=['A[0]', 'A[1]', 'A[2]', 'A[3]', 'A[4]', 'A[5]', 'A[6]', 'A[7]', 'B[0]', 'B[1]', 'B[2]', 'B[3]', 'B[4]', 'B[5]', 'B[6]', 'B[7]'], out=['Y[0]', 'Y[1]', 'Y[2]', 'Y[3]', 'Y[4]', 'Y[5]', 'Y[6]', 'Y[7]'])
+Node(name='$sub$test.v:141$6.genblk1.u_add1', type='RS_ADD8', bbox=(0, 0, 0, 5, 16, 8), in=['A[0]', 'A[1]', 'A[2]', 'A[3]', 'A[4]', 'A[5]', 'A[6]', 'A[7]', 'B[0]', 'B[1]', 'B[2]', 'B[3]', 'B[4]', 'B[5]', 'B[6]', 'B[7]'], out=['Y[0]', 'Y[1]', 'Y[2]', 'Y[3]', 'Y[4]', 'Y[5]', 'Y[6]', 'Y[7]'])
+Node(name='$sub$test.v:141$6.genblk1.u_add2', type='RS_ADD8', bbox=(0, 0, 0, 5, 16, 8), in=['A[0]', 'A[1]', 'A[2]', 'A[3]', 'A[4]', 'A[5]', 'A[6]', 'A[7]'], out=['Y[0]', 'Y[1]', 'Y[2]', 'Y[3]', 'Y[4]', 'Y[5]', 'Y[6]', 'Y[7]'])
+Node(name='$sub$test.v:141$6.genblk1.u_not', type='RS_NOT8', bbox=(0, 0, 0, 3, 16, 8), in=['A[0]', 'A[1]', 'A[2]', 'A[3]', 'A[4]', 'A[5]', 'A[6]', 'A[7]'], out=['Y[0]', 'Y[1]', 'Y[2]', 'Y[3]', 'Y[4]', 'Y[5]', 'Y[6]', 'Y[7]'])
+Node(name='$techmap$techmap242$auto$ff.cc:337:slice$225.$ternary$redstone_techmap.v:99$241', type='RS_MUX8', bbox=(0, 0, 0, 4, 16, 3), in=['A[0]', 'A[1]', 'A[2]', 'A[3]', 'A[4]', 'A[5]', 'A[6]', 'A[7]', 'B[0]', 'B[1]', 'B[2]', 'B[3]', 'B[4]', 'B[5]', 'B[6]', 'B[7]', 'S'], out=['Y[0]', 'Y[1]', 'Y[2]', 'Y[3]', 'Y[4]', 'Y[5]', 'Y[6]', 'Y[7]'])
+Node(name='$techmap$techmap243$auto$ff.cc:337:slice$224.$ternary$redstone_techmap.v:99$241', type='RS_MUX8', bbox=(0, 0, 0, 4, 16, 3), in=['A[0]', 'A[1]', 'A[2]', 'A[3]', 'A[4]', 'A[5]', 'A[6]', 'A[7]', 'B[0]', 'B[1]', 'B[2]', 'B[3]', 'B[4]', 'B[5]', 'B[6]', 'B[7]', 'S'], out=['Y[0]', 'Y[1]', 'Y[2]', 'Y[3]', 'Y[4]', 'Y[5]', 'Y[6]', 'Y[7]'])
+Node(name='$techmap$techmap244$auto$ff.cc:337:slice$199.$ternary$redstone_techmap.v:99$241', type='RS_MUX8', bbox=(0, 0, 0, 4, 16, 3), in=['A[0]', 'A[1]', 'A[2]', 'A[3]', 'A[4]', 'A[5]', 'A[6]', 'A[7]', 'B[0]', 'B[1]', 'B[2]', 'B[3]', 'B[4]', 'B[5]', 'B[6]', 'B[7]', 'S'], out=['Y[0]', 'Y[1]', 'Y[2]', 'Y[3]', 'Y[4]', 'Y[5]', 'Y[6]', 'Y[7]'])
+Node(name='$techmap$techmap245$auto$ff.cc:337:slice$221.$ternary$redstone_techmap.v:99$241', type='RS_MUX8', bbox=(0, 0, 0, 4, 16, 3), in=['A[0]', 'A[1]', 'A[2]', 'A[3]', 'A[4]', 'A[5]', 'A[6]', 'A[7]', 'B[0]', 'B[1]', 'B[2]', 'B[3]', 'B[4]', 'B[5]', 'B[6]', 'B[7]', 'S'], out=['Y[0]', 'Y[1]', 'Y[2]', 'Y[3]', 'Y[4]', 'Y[5]', 'Y[6]', 'Y[7]'])
+Node(name='$techmap$techmap246$auto$ff.cc:337:slice$220.$ternary$redstone_techmap.v:99$241', type='RS_MUX8', bbox=(0, 0, 0, 4, 16, 3), in=['A[0]', 'A[1]', 'A[2]', 'A[3]', 'A[4]', 'A[5]', 'A[6]', 'A[7]', 'B[0]', 'B[1]', 'B[2]', 'B[3]', 'B[4]', 'B[5]', 'B[6]', 'B[7]', 'S'], out=['Y[0]', 'Y[1]', 'Y[2]', 'Y[3]', 'Y[4]', 'Y[5]', 'Y[6]', 'Y[7]'])
+Node(name='$techmap$techmap247$auto$ff.cc:337:slice$208.$ternary$redstone_techmap.v:99$241', type='RS_MUX8', bbox=(0, 0, 0, 4, 16, 3), in=['A[0]', 'A[1]', 'A[2]', 'A[3]', 'A[4]', 'A[5]', 'A[6]', 'A[7]', 'B[0]', 'B[1]', 'B[2]', 'B[3]', 'B[4]', 'B[5]', 'B[6]', 'B[7]', 'S'], out=['Y[0]', 'Y[1]', 'Y[2]', 'Y[3]', 'Y[4]', 'Y[5]', 'Y[6]', 'Y[7]'])
+Node(name='$xor$test.v:159$12', type='RS_XOR8', bbox=(0, 0, 0, 5, 16, 8), in=['A[0]', 'A[1]', 'A[2]', 'A[3]', 'A[4]', 'A[5]', 'A[6]', 'A[7]', 'B[0]', 'B[1]', 'B[2]', 'B[3]', 'B[4]', 'B[5]', 'B[6]', 'B[7]'], out=['Y[0]', 'Y[1]', 'Y[2]', 'Y[3]', 'Y[4]', 'Y[5]', 'Y[6]', 'Y[7]'])
+Node(name='main_mem', type='RS_RAM8', bbox=(0, 0, 0, 10, 16, 10), in=['ADDR[0]', 'ADDR[1]', 'ADDR[2]', 'ADDR[3]', 'ADDR[4]', 'ADDR[5]', 'ADDR[6]', 'ADDR[7]', 'CLK', 'DI[0]', 'DI[1]', 'DI[2]', 'DI[3]', 'DI[4]', 'DI[5]', 'DI[6]', 'DI[7]', 'WE'], out=['DO[0]', 'DO[1]', 'DO[2]', 'DO[3]', 'DO[4]', 'DO[5]', 'DO[6]', 'DO[7]'])
+
+Building graph...
+Graph built with 111 nodes and 913 edges.
+Starting force-directed placement (Spring Layout)...
+Running custom force-directed simulation with Y-penalty (Scale: 20)...
+Legalizing placement (resolving collisions)...
+Generating spiral offsets cache...
+Legalizing 0/111...Legalizing 10/111...Legalizing 20/111...Legalizing 30/111...Legalizing 40/111...Legalizing 50/111...Legalizing 60/111...Legalizing 70/111...Legalizing 80/111...Legalizing 90/111...Legalizing 100/111...Legalizing 110/111...
+Placement complete.
+Using optimized placement.
+Starting routing...
+Building routing grid obstacles...
+Pass 1: Running tunneling for all pins...
+Pass 2: connecting nets...
+Routing net 0/430...Routing net 10/430...Routing net 20/430...Routing net 30/430...Routing net 40/430...Routing net 50/430...Routing net 60/430...Routing net 70/430...Routing net 80/430...Routing net 90/430...Routing net 100/430...Routing net 110/430...Routing net 120/430...Routing net 130/430...Routing net 140/430...Routing net 150/430...Routing net 160/430...Routing net 170/430...Routing net 180/430...Routing net 190/430...Routing net 200/430...Routing net 210/430...Routing net 220/430...Routing net 230/430...Routing net 240/430...Routing net 250/430...Routing net 260/430...Routing net 270/430...Routing net 280/430...Routing net 290/430...Routing net 300/430...Routing net 310/430...Routing net 320/430...Routing net 330/430...Routing net 340/430...Routing net 350/430...Routing net 360/430...Routing net 370/430...Routing net 380/430...Routing net 390/430...Routing net 400/430...Routing net 410/430...Routing net 420/430...
+Routing complete. Failed connections: 0/913
+Drawing routed paths...
+Saving graph to netlist_graph.png...
+Done.
+Generating 2D projection...
+Drawing routed paths on 2D projection...
+Saving 2D projection to netlist_projection_2d.png...
+Done.
+Generating interactive 3D visualization...
+Adding tunnels to interactive plot...
+Adding routed paths to interactive plot...
+Saving interactive graph to netlist_graph.html...
+Done.

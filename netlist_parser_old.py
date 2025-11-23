@@ -26,7 +26,6 @@ class Node:
         self.incoming: Dict[str, List[str]] = {}
         self.outgoing: Dict[str, List[str]] = {}
         self.pin_locations: Dict[str, Tuple[int, int, int]] = {}
-        self.constants: Dict[str, str] = {}
     
     def set_bounding_box(self, x: int, y: int, z: int, width: int, height: int, depth: int):
         self.bounding_box = (x, y, z, width, height, depth)
@@ -43,9 +42,6 @@ class Node:
         
     def set_pin_location(self, port: str, x: int, y: int, z: int):
         self.pin_locations[port] = (x, y, z)
-
-    def add_constant_connection(self, port: str, value: str):
-        self.constants[port] = value
     
     def __repr__(self):
         return (f"Node(name={self.name!r}, type={self.cell_type!r}, "
@@ -109,66 +105,26 @@ def parse_netlist(json_file_path: str, cells_json_path: str = "cells/cells.json"
             
             layout_data = cell_layouts.get(cell_type, {})
             
-            # Generic dynamic layout for unknown cells
-            if not layout_data:
-                # print(f"Generating dynamic layout for unknown cell type: {cell_type}")
+            # Dynamic layout generation for reduce operations
+            if not layout_data and cell_type.startswith('$reduce_'):
                 connections = cell_data.get('connections', {})
-                port_directions = cell_data.get('port_directions', {})
+                a_bits = connections.get('A', [])
+                width_a = len(a_bits)
                 
-                input_ports = {} # port_name -> [pin_names]
-                output_pins = []
-                
-                for port, bits in connections.items():
-                    direction = port_directions.get(port, 'input')
-                    if direction not in ['input', 'output']:
-                         if port in ['Y', 'Q', 'OUT', 'DO']: direction = 'output'
-                         else: direction = 'input'
-
-                    if direction == 'input':
-                        pin_names = []
-                        for i in range(len(bits)):
-                            pin_names.append(f"{port}[{i}]" if len(bits) > 1 else port)
-                        input_ports[port] = pin_names
-                    else:
-                        for i in range(len(bits)):
-                            pin_name = f"{port}[{i}]" if len(bits) > 1 else port
-                            output_pins.append(pin_name)
-                            
-                # Calculate dimensions
-                num_input_ports = len(input_ports)
-                max_input_bits = 0
-                for pins in input_ports.values():
-                    max_input_bits = max(max_input_bits, len(pins))
-                    
-                max_pins_vertical = max(max_input_bits, len(output_pins))
-                
-                height = max(2, max_pins_vertical * 2)
-                
-                # Width: enough for inputs spread by 2 (x=0, x=2, ...), plus space for outputs
-                last_input_x = (num_input_ports - 1) * 2 if num_input_ports > 0 else 0
-                width = max(4, last_input_x + 3) 
+                # Height: 2 units per input bit, minimum 2
+                # This ensures inputs are spread out vertically like RS_NOT8/RS_AND8
+                height = max(2, width_a * 2)
+                width = 3
                 depth = 2
                 
                 layout_data = {
                     'bbox': {'width': width, 'height': height, 'depth': depth},
                     'inputs': {},
-                    'outputs': {}
+                    'outputs': {'Y': {'x': width, 'y': height // 2, 'z': 1}}
                 }
                 
-                # Place inputs
-                sorted_ports = sorted(input_ports.keys())
-                for i, port in enumerate(sorted_ports):
-                    x_pos = i * 2
-                    pins = input_ports[port]
-                    for bit_idx, pin_name in enumerate(pins):
-                        # Align bits: bit 0 at y=1, bit 1 at y=3...
-                        y_pos = 1 + bit_idx * 2
-                        layout_data['inputs'][pin_name] = {'x': x_pos, 'y': y_pos, 'z': 0}
-                        
-                # Place outputs on right
-                for i, pin in enumerate(output_pins):
-                    y_pos = int((i + 0.5) * (height / len(output_pins))) if output_pins else 1
-                    layout_data['outputs'][pin] = {'x': width, 'y': y_pos, 'z': 0}
+                for i in range(width_a):
+                    layout_data['inputs'][f"A[{i}]"] = {'x': 0, 'y': 2 * i + 1, 'z': 0}
 
             if layout_data:
                 bbox_data = layout_data.get('bbox', {})
@@ -182,6 +138,11 @@ def parse_netlist(json_file_path: str, cells_json_path: str = "cells/cells.json"
                     
                 for pin_name, pin_pos in layout_data.get('outputs', {}).items():
                     node.set_pin_location(pin_name, pin_pos.get('x', 0), pin_pos.get('y', 0), pin_pos.get('z', 0))
+            else:
+                node.set_bounding_box(0, 0, 0, 2, 2, 2)
+                node.set_pin_location('Y', 2, 1, 1)
+                node.set_pin_location('A', 0, 1, 1)
+                node.set_pin_location('B', 0, 1, 1)
             
             connections = cell_data.get('connections', {})
             port_directions = cell_data.get('port_directions', {})
@@ -199,9 +160,6 @@ def parse_netlist(json_file_path: str, cells_json_path: str = "cells/cells.json"
                         if isinstance(bit, int) and bit >= 0:
                             pin_key = f"{port_name}[{i}]" if is_array else port_name
                             node.add_incoming_connection(pin_key, f"net_{bit}")
-                        elif isinstance(bit, (int, str)) and str(bit) in ['0', '1']:
-                             pin_key = f"{port_name}[{i}]" if is_array else port_name
-                             node.add_constant_connection(pin_key, str(bit))
                 elif direction == 'output':
                     for i, bit in enumerate(port_bits):
                         if isinstance(bit, int) and bit >= 0:
@@ -239,7 +197,7 @@ def build_graph(nodes: List[Node]) -> nx.DiGraph:
     for node in nodes:
         dims = (node.bounding_box[3], node.bounding_box[4], node.bounding_box[5])
         port_count = len(node.incoming) + len(node.outgoing)
-        G.add_node(node.name, cell_type=node.cell_type, dims=dims, port_count=port_count, pin_locations=node.pin_locations, constants=node.constants)
+        G.add_node(node.name, cell_type=node.cell_type, dims=dims, port_count=port_count, pin_locations=node.pin_locations)
         
         for port, nets in node.outgoing.items():
             for net in nets:
@@ -265,64 +223,6 @@ def build_graph(nodes: List[Node]) -> nx.DiGraph:
                                src_port=driver_port, dst_port=sink_port)
                     
     return G
-
-
-class SpatialIndex:
-    """
-    A simple spatial hashing index for fast 3D collision detection.
-    Divides space into buckets of fixed size.
-    """
-    def __init__(self, bucket_size=10):
-        self.bucket_size = bucket_size
-        self.buckets: Dict[Tuple[int, int, int], List[Tuple[int, int, int, int, int, int]]] = {}
-
-    def _get_bucket_keys(self, x, y, z, w, h, d):
-        """Get all bucket keys that a box overlaps with."""
-        min_bx = int(x // self.bucket_size)
-        max_bx = int((x + w) // self.bucket_size)
-        min_by = int(y // self.bucket_size)
-        max_by = int((y + h) // self.bucket_size)
-        min_bz = int(z // self.bucket_size)
-        max_bz = int((z + d) // self.bucket_size)
-
-        for bx in range(min_bx, max_bx + 1):
-            for by in range(min_by, max_by + 1):
-                for bz in range(min_bz, max_bz + 1):
-                    yield (bx, by, bz)
-
-    def insert(self, box: Tuple[int, int, int, int, int, int]):
-        x, y, z, w, h, d = box
-        for key in self._get_bucket_keys(x, y, z, w, h, d):
-            if key not in self.buckets:
-                self.buckets[key] = []
-            self.buckets[key].append(box)
-
-    def query(self, x, y, z, w, h, d) -> bool:
-        """Returns True if the box overlaps with any existing box in the index."""
-        # Optimization: Avoid allocating set for checked_boxes
-        # It is faster to re-check a few boxes than to allocate a set for every query
-        
-        min_bx = int(x // self.bucket_size)
-        max_bx = int((x + w) // self.bucket_size)
-        min_by = int(y // self.bucket_size)
-        max_by = int((y + h) // self.bucket_size)
-        min_bz = int(z // self.bucket_size)
-        max_bz = int((z + d) // self.bucket_size)
-
-        for bx in range(min_bx, max_bx + 1):
-            for by in range(min_by, max_by + 1):
-                for bz in range(min_bz, max_bz + 1):
-                    key = (bx, by, bz)
-                    if key in self.buckets:
-                        for obox in self.buckets[key]:
-                            ox, oy, oz, ow, oh, od = obox
-                            # Fast AABB check
-                            if (x < ox + ow and x + w > ox and
-                                y < oy + oh and y + h > oy and
-                                z < oz + od and z + d > oz):
-                                return True
-        return False
-
 
 
 def optimize_placement(G: nx.DiGraph, max_time_seconds: float = 60.0) -> Dict[str, Tuple[float, float, float]]:
@@ -418,7 +318,6 @@ def optimize_placement(G: nx.DiGraph, max_time_seconds: float = 60.0) -> Dict[st
             force *= weight
             
             disp_vec = (vec / dist) * force
-            disp_vec[1] *= 5.0 # Increase vertical stiffness to keep connected nodes at similar heights
             disp[u_idx] -= disp_vec
             disp[v_idx] += disp_vec
             
@@ -440,7 +339,7 @@ def optimize_placement(G: nx.DiGraph, max_time_seconds: float = 60.0) -> Dict[st
     for node in G.nodes():
         dims = G.nodes[node].get('dims', (1, 1, 1))
         w, h, d = int(dims[0]), int(dims[1]), int(dims[2])
-        padding = 6# G.nodes[node].get('padding', h*2) // h
+        padding = 10# G.nodes[node].get('padding', h*2) // h
         node_info[node] = {
             'w': w, 'h': h, 'd': d,
             'w_padded': w + padding, 
@@ -450,9 +349,15 @@ def optimize_placement(G: nx.DiGraph, max_time_seconds: float = 60.0) -> Dict[st
         
     final_positions: Dict[str, Tuple[float, float, float]] = {}
     node_rotations: Dict[str, int] = {}  # Store rotation for each node (0, 90, 180, 270)
+    occupied_boxes: List[Tuple[int, int, int, int, int, int]] = []
     
-    # Use SpatialIndex for fast collision detection
-    spatial_index = SpatialIndex(bucket_size=20)
+    def check_overlap(x: int, y: int, z: int, w: int, h: int, d: int) -> bool:
+        for ox, oy, oz, ow, oh, od in occupied_boxes:
+            if (x < ox + ow and x + w > ox and
+                y < oy + oh and y + h > oy and
+                z < oz + od and z + d > oz):
+                return True
+        return False
     
     def rotate_dimensions(w: int, h: int, d: int, rotation: int) -> Tuple[int, int, int]:
         """Rotate dimensions. Rotation is 0°, 90°, 180°, 270° around Y axis."""
@@ -497,32 +402,29 @@ def optimize_placement(G: nx.DiGraph, max_time_seconds: float = 60.0) -> Dict[st
         cost = 0.0
         for neighbor in neighbors:
             if neighbor in placed_positions:
-                n_x, n_y, n_z = placed_positions[neighbor]
+                nx, ny, nz = placed_positions[neighbor]
                 px, py, pz = pos
-                cost += abs(n_x - px) + abs(n_y - py) + abs(n_z - pz)
+                cost += abs(nx - px) + abs(ny - py) + abs(nz - pz)
         return cost
         
-    # Pre-calculate spiral offsets once
-    print("Generating spiral offsets cache...")
-    spiral_offsets_cache = []
-    pq = [(0.0, 0.0, 0, 0, 0)]
-    visited_offsets = {(0, 0, 0)}
-    Y_PENALTY = 10.0
-    MAX_OFFSETS = 1000000 # Limit search space
-    
-    while pq and len(spiral_offsets_cache) < MAX_OFFSETS:
-        cost, _, dx, dy, dz = heapq.heappop(pq)
-        spiral_offsets_cache.append((dx, dy, dz))
+    def generate_spiral_offsets():
+        pq = [(0.0, 0.0, 0, 0, 0)]
+        visited = {(0, 0, 0)}
+        Y_PENALTY = 10.0
         
-        for next_x, next_y, next_z in [
-            (dx+1, dy, dz), (dx-1, dy, dz),
-            (dx, dy+1, dz), (dx, dy-1, dz),
-            (dx, dy, dz+1), (dx, dy, dz-1)
-        ]:
-            if (next_x, next_y, next_z) not in visited_offsets:
-                visited_offsets.add((next_x, next_y, next_z))
-                new_cost = next_x*next_x + Y_PENALTY * next_y*next_y + next_z*next_z
-                heapq.heappush(pq, (new_cost, random.random(), next_x, next_y, next_z))
+        while pq:
+            cost, _, dx, dy, dz = heapq.heappop(pq)
+            yield (dx, dy, dz)
+            
+            for nx, ny, nz in [
+                (dx+1, dy, dz), (dx-1, dy, dz),
+                (dx, dy+1, dz), (dx, dy-1, dz),
+                (dx, dy, dz+1), (dx, dy, dz-1)
+            ]:
+                if (nx, ny, nz) not in visited:
+                    visited.add((nx, ny, nz))
+                    new_cost = nx*nx + Y_PENALTY * ny*ny + nz*nz
+                    heapq.heappush(pq, (new_cost, random.random(), nx, ny, nz))
 
     sorted_nodes = sorted(G.nodes(), key=lambda n: raw_pos[n][0])
     placed_set = set()
@@ -568,9 +470,9 @@ def optimize_placement(G: nx.DiGraph, max_time_seconds: float = 60.0) -> Dict[st
             start_z = int(tz - d/2)
             
             found_pos = None
-            for dx, dy, dz in spiral_offsets_cache:
+            for dx, dy, dz in generate_spiral_offsets():
                 x, y, z = start_x + dx, start_y + dy, start_z + dz
-                if not spatial_index.query(x, y, z, w, h, d):
+                if not check_overlap(x, y, z, w, h, d):
                     found_pos = (x, y, z)
                     break
             
@@ -599,19 +501,19 @@ def optimize_placement(G: nx.DiGraph, max_time_seconds: float = 60.0) -> Dict[st
             start_x = int(tx - w/2)
             start_y = int(ty - h/2)
             start_z = int(tz - d/2)
-            
-            # If cache was exhausted, we might need to search further or just stack it far away
-            # For now, just use the last valid spot found or force place (shouldn't happen often with large cache)
-            print(f"Warning: Could not find non-overlapping position for {node} within search limit.")
-            fx, fy, fz = start_x, start_y, start_z
-            cx = fx + w / 2.0
-            cy = fy + h / 2.0
-            cz = fz + d / 2.0
-            best_position = (cx, cy, cz)
-            best_box = (fx, fy, fz, w, h, d)
-            best_rotation = 0
+            for dx, dy, dz in generate_spiral_offsets():
+                x, y, z = start_x + dx, start_y + dy, start_z + dz
+                if not check_overlap(x, y, z, w, h, d):
+                    fx, fy, fz = x, y, z
+                    cx = fx + w / 2.0
+                    cy = fy + h / 2.0
+                    cz = fz + d / 2.0
+                    best_position = (cx, cy, cz)
+                    best_box = (fx, fy, fz, w, h, d)
+                    best_rotation = 0
+                    break
         
-        spatial_index.insert(best_box)
+        occupied_boxes.append(best_box)
         final_positions[node] = best_position
         node_rotations[node] = best_rotation
         placed_set.add(node)
@@ -639,7 +541,6 @@ class RoutingGrid:
         self.nodes_data = nodes_data
         self.blocked_coords = set()
         self.node_occupancy = {}
-        self.wire_occupancy = {} # (x,y,z) -> net_name
         self.min_coords = [float('inf')] * 3
         self.max_coords = [float('-inf')] * 3
         self._build_grid()
@@ -675,29 +576,17 @@ class RoutingGrid:
                         self.blocked_coords.add(coord)
                         self.node_occupancy[coord] = name
 
-    def is_blocked(self, point, allowed_points=None, forceful=False):
+    def is_blocked(self, point, allowed_points=None):
         if point in self.blocked_coords:
             if allowed_points and point in allowed_points:
                 return False
-            
-            # If forceful, only hard obstacles (nodes) block us. Wires don't.
-            if forceful:
-                if point in self.node_occupancy:
-                    return True
-                return False # It's a wire, so we can bulldoze (at a cost)
-                
             return True
         return False
 
-    def add_path(self, path, net_name):
+    def add_path(self, path):
         for i in range(len(path)):
-            p = path[i]
-            self.blocked_coords.add(p)
-            self.wire_occupancy[p] = net_name
-            
-            p_up = (p[0], p[1]+1, p[2])
-            self.blocked_coords.add(p_up)  # 2 tall
-            self.wire_occupancy[p_up] = net_name
+            self.blocked_coords.add(path[i])
+            self.blocked_coords.add((path[i][0], path[i][1]+1, path[i][2]))  # 2 tall
 
             if i < len(path) - 1:
                 p1 = path[i]
@@ -715,52 +604,21 @@ class RoutingGrid:
                     mid2 = (x + dx//2, y + dy, z + dz//2)
                     self.blocked_coords.add(mid1)
                     self.blocked_coords.add(mid2)
-                    self.wire_occupancy[mid1] = net_name
-                    self.wire_occupancy[mid2] = net_name
 
-    def remove_path(self, path):
-        """Removes a path from the grid (rip-up)."""
-        for i in range(len(path)):
-            p = path[i]
-            self.blocked_coords.discard(p)
-            self.wire_occupancy.pop(p, None)
-            
-            p_up = (p[0], p[1]+1, p[2])
-            self.blocked_coords.discard(p_up)
-            self.wire_occupancy.pop(p_up, None)
-
-            if i < len(path) - 1:
-                p1 = path[i]
-                p2 = path[i+1]
-                
-                if abs(p2[1] - p1[1]) == 1:
-                    x, y, z = p1
-                    nx, ny, nz = p2
-                    dx = nx - x
-                    dy = ny - y
-                    dz = nz - z
-                    
-                    mid1 = (x + dx//2, y, z + dz//2)
-                    mid2 = (x + dx//2, y + dy, z + dz//2)
-                    self.blocked_coords.discard(mid1)
-                    self.blocked_coords.discard(mid2)
-                    self.wire_occupancy.pop(mid1, None)
-                    self.wire_occupancy.pop(mid2, None)
-
-    def get_neighbors(self, point, allowed_points=None, forceful=False):
+    def get_neighbors(self, point, allowed_points=None):
         x, y, z = point
         moves = [
             # Horizontal moves (slope 0) - Cost 1
             ((x+1, y, z), 1.0), ((x-1, y, z), 1.0),
             ((x, y, z+1), 1.0), ((x, y, z-1), 1.0),
-            # Going through a wire - Cost 1.2 (prefer straight shots over individual horizontal movements)
-            ((x+2, y, z), 1.2), ((x-2, y, z), 1.2),
-            ((x, y, z+2), 1.2), ((x, y, z-2), 1.2),
+            # Going through a wire - Cost 2
+            ((x+2, y, z), 2.0), ((x-2, y, z), 1.2),
+            ((x, y, z+2), 2.0), ((x, y, z-2), 1.2),
             # Sloped vertical moves (slope 1/2) - Cost 3 (approx Manhattan dist)
-            ((x+2, y+1, z), 3.0), ((x-2, y+1, z), 3.0),
-            ((x, y+1, z+2), 3.0), ((x, y+1, z-2), 3.0),
-            ((x+2, y-1, z), 3.0), ((x-2, y-1, z), 3.0),
-            ((x, y-1, z+2), 3.0), ((x, y-1, z-2), 3.0)
+            ((x+2, y+1, z), 3.0), ((x-2, y+1, z), 2.0),
+            ((x, y+1, z+2), 3.0), ((x, y+1, z-2), 2.0),
+            ((x+2, y-1, z), 3.0), ((x-2, y-1, z), 2.0),
+            ((x, y-1, z+2), 3.0), ((x, y-1, z-2), 2.0)
         ]
         valid = []
         min_x, min_y, min_z = self.min_coords
@@ -771,15 +629,6 @@ class RoutingGrid:
                 min_y <= ny <= max_y and
                 min_z <= nz <= max_z):
                 
-                if self.is_blocked((nx, ny, nz), allowed_points, forceful):
-                    continue
-                # Wires are 2 tall.
-                # If the target point is an allowed point (e.g. a pin or existing wire), we skip the height check
-                # to allow connecting to pins that might be flush against a component, or traversing existing wires.
-                is_target = allowed_points is not None and (nx, ny, nz) in allowed_points
-                if not is_target and self.is_blocked((nx, ny+1, nz), allowed_points, forceful):
-                    continue
-
                 # Check for clipping on vertical moves
                 if abs(ny - y) == 1:
                     dx = nx - x
@@ -788,26 +637,19 @@ class RoutingGrid:
                     mid1 = (x + dx//2, y, z + dz//2)
                     mid2 = (x + dx//2, y + dy, z + dz//2)
                     
-                    if (self.is_blocked(mid1, allowed_points, forceful) or self.is_blocked(mid2, allowed_points, forceful)):
+                    if cost != 2.0 and (self.is_blocked(mid1, allowed_points) or self.is_blocked(mid2, allowed_points)):
                         continue
 
-                # Apply penalty for bulldozing
-                final_cost = cost
-                if forceful:
-                    # Check if we are stepping on a wire (soft block)
-                    # We check the point and the point above it (since wires are 2 tall)
-                    is_colliding = False
-                    if (nx, ny, nz) in self.wire_occupancy: is_colliding = True
-                    if (nx, ny+1, nz) in self.wire_occupancy: is_colliding = True
-                    
-                    if is_colliding:
-                        final_cost += 50.0 # Penalty for ripping up a net (reduced to avoid A* timeout)
+                    if cost == 2.0:
+                        # Allow jumps through wires
+                        if self.is_blocked((nx, ny, nz), allowed_points):
+                            continue
 
-                valid.append(((nx, ny, nz), final_cost))
+                valid.append(((nx, ny, nz), cost))
         return valid
 
 
-def a_star(start, goal, grid, allowed_points, max_steps=50000, forceful=False):
+def a_star(start, goal, grid, allowed_points, max_steps=50000):
     def h(p1, p2):
         # Standard Manhattan distance
         return abs(p1[0]-p2[0]) + abs(p1[1]-p2[1]) + abs(p1[2]-p2[2])
@@ -835,8 +677,8 @@ def a_star(start, goal, grid, allowed_points, max_steps=50000, forceful=False):
             path.append(start)
             return path[::-1]
             
-        for neighbor, move_cost in grid.get_neighbors(current, allowed_points, forceful):
-            if grid.is_blocked(neighbor, allowed_points, forceful):
+        for neighbor, move_cost in grid.get_neighbors(current, allowed_points):
+            if grid.is_blocked(neighbor, allowed_points):
                 continue
                 
             tentative_g = current_g + move_cost
@@ -876,7 +718,7 @@ def find_tunnel(grid, start_point):
             next_point = (curr_x, curr_y, curr_z)
             path.append(next_point)
             
-            if not grid.is_blocked(next_point):
+            if next_point not in grid.blocked_coords:
                 valid_paths.append(path)
                 break
                 
@@ -886,8 +728,7 @@ def find_tunnel(grid, start_point):
     # Return the shortest path
     return min(valid_paths, key=len)
 
-
-def route_nets(G: nx.DiGraph, positions: Dict[str, Tuple[float, float, float]], max_time_seconds: float = None) -> Tuple[Dict[str, List[List[Tuple[int, int, int]]]], List[Dict], List[List[Tuple[int, int, int]]]]:
+def route_nets(G: nx.DiGraph, positions: Dict[str, Tuple[float, float, float]]) -> Dict[str, List[List[Tuple[int, int, int]]]]:
     print("Starting routing...")
     
     nodes_data = {}
@@ -914,7 +755,6 @@ def route_nets(G: nx.DiGraph, positions: Dict[str, Tuple[float, float, float]], 
         nets[net_name]['sinks'].append((v, dst_port))
         
     routed_paths = {}
-    failed_connections_list = []
     
     failed_connections = 0
     total_connections = 0
@@ -930,10 +770,6 @@ def route_nets(G: nx.DiGraph, positions: Dict[str, Tuple[float, float, float]], 
     precalculated_data = {} 
     
     total_nets = len(nets)
-    
-    import time
-    start_time = time.time()
-
     for i, (net_name, net_data) in enumerate(nets.items()):
         driver_node, driver_port = net_data['driver']
         sinks = net_data['sinks']
@@ -990,27 +826,13 @@ def route_nets(G: nx.DiGraph, positions: Dict[str, Tuple[float, float, float]], 
             else:
                 grid.blocked_coords.add(p)
 
-    # --- Pass 2: Main Routing with Rip-up and Reroute ---
-    print("Pass 2: connecting nets with Rip-up and Reroute...")
+    # --- Pass 2: Main Routing ---
+    print("Pass 2: connecting nets...")
     
-    # Queue of nets to route: (priority, net_name)
-    # We use a priority queue to prioritize nets that have been ripped up less often?
-    # Or just a simple deque. Let's use a deque for simplicity first.
-    from collections import deque
-    routing_queue = deque(nets.keys())
-    
-    # Track how many times each net has been ripped up
-    rip_up_counts = {net: 0 for net in nets}
-    MAX_RIP_UPS = 10
-    
-    while routing_queue:
-        if max_time_seconds and (time.time() - start_time > max_time_seconds):
-            print(f"Stopping routing after {max_time_seconds} seconds.")
-            break
+    for i, (net_name, net_data) in enumerate(nets.items()):
+        if i % 10 == 0:
+            print(f"Routing net {i}/{total_nets}...", end='\r')
             
-        net_name = routing_queue.popleft()
-        net_data = nets[net_name]
-        
         driver_node, driver_port = net_data['driver']
         sinks = net_data['sinks']
         
@@ -1048,10 +870,6 @@ def route_nets(G: nx.DiGraph, positions: Dict[str, Tuple[float, float, float]], 
             sink_tunnels[p] = tun
             
         net_paths = []
-        success = True
-        
-        # Temporary storage for paths in this iteration
-        current_net_paths = []
         
         while remaining_sinks:
             best_dist = float('inf')
@@ -1065,7 +883,6 @@ def route_nets(G: nx.DiGraph, positions: Dict[str, Tuple[float, float, float]], 
                          best_pair = (tp, sp)
             
             if not best_pair:
-                success = False
                 break
                 
             start, end = best_pair
@@ -1077,54 +894,11 @@ def route_nets(G: nx.DiGraph, positions: Dict[str, Tuple[float, float, float]], 
                     allowed_points.add(p)
             allowed_points.add(end) 
             
-            # Try normal routing first
-            path = a_star(start, end, grid, allowed_points, forceful=False)
+            path = a_star(start, end, grid, allowed_points)
             
-            if not path:
-                # Normal routing failed. Try forceful routing if we haven't exceeded rip-up limit.
-                if rip_up_counts[net_name] < MAX_RIP_UPS:
-                    # print(f"  [Force] Net {net_name} needs to bulldoze...")
-                    # Increase max_steps for forceful search to ensure we find a path even if it's long
-                    path = a_star(start, end, grid, allowed_points, max_steps=100000, forceful=True)
-                    
-                    if path:
-                        # Identify collisions
-                        collided_nets = set()
-                        for p in path:
-                            # Check p and p+1 (wire height)
-                            if p in grid.wire_occupancy:
-                                collided_nets.add(grid.wire_occupancy[p])
-                            p_up = (p[0], p[1]+1, p[2])
-                            if p_up in grid.wire_occupancy:
-                                collided_nets.add(grid.wire_occupancy[p_up])
-                        
-                        # Filter out self (shouldn't happen if logic is correct, but safe to check)
-                        if net_name in collided_nets:
-                            collided_nets.remove(net_name)
-                            
-                        # Rip up collided nets
-                        if collided_nets:
-                            print(f"  [Rip-up] Net {net_name} ripping up: {collided_nets}")
-                            for victim in collided_nets:
-                                if victim in routed_paths:
-                                    # Remove victim's paths from grid
-                                    for vp in routed_paths[victim]:
-                                        grid.remove_path(vp)
-                                    # Remove from routed_paths
-                                    del routed_paths[victim]
-                                    # Add back to queue
-                                    routing_queue.append(victim)
-                                    rip_up_counts[victim] += 1
-                
             if path:
-                current_net_paths.append(path)
-                # We don't add to grid yet? No, we must add to grid immediately so subsequent segments of THIS net respect it.
-                # But if we fail later in this net, we might need to rollback?
-                # For now, let's assume we commit segment by segment.
-                # Wait, if we are in forceful mode, we might be stepping on nets we just ripped up?
-                # No, we ripped them up, so they are gone from grid.
-                
-                grid.add_path(path, net_name)
+                net_paths.append(path)
+                grid.add_path(path)
                 for p in path:
                     tree_points.add(p)
                 
@@ -1136,35 +910,12 @@ def route_nets(G: nx.DiGraph, positions: Dict[str, Tuple[float, float, float]], 
             else:
                 print(f"  [Fail] No path found for net {net_name} from {start} to {end}")
                 failed_connections += 1
-                failed_connections_list.append({
-                    'net': net_name,
-                    'start': start,
-                    'end': end
-                })
                 remaining_sinks.remove(end)
-                success = False
                 
-        if success:
-            routed_paths[net_name] = current_net_paths
-        else:
-            # If we failed partially, we should probably clean up what we placed for this net?
-            # Or just leave it as a partial route.
-            # Let's leave it for now, or maybe rip it up so it doesn't block others?
-            # If it failed, it's likely stuck. Leaving it might be better than nothing.
-            routed_paths[net_name] = current_net_paths
+        routed_paths[net_name] = net_paths
         
     print(f"\nRouting complete. Failed connections: {failed_connections}/{total_connections}")
-    
-    # Collect all tunnels for visualization
-    all_tunnels = []
-    for net_data in precalculated_data.values():
-        if net_data['driver'] and net_data['driver']['tunnel']:
-            all_tunnels.append(net_data['driver']['tunnel'])
-        for sink_data in net_data['sinks'].values():
-            if sink_data['tunnel']:
-                all_tunnels.append(sink_data['tunnel'])
-                
-    return routed_paths, failed_connections_list, all_tunnels
+    return routed_paths
 
 def visualize_graph(G: nx.DiGraph, positions: Optional[Dict[str, Tuple[float, float, float]]] = None, routed_paths: Optional[Dict[str, List[List[Tuple[int, int, int]]]]] = None):
     """Visualizes the graph using a 3D spring layout with approximate bounding boxes."""
@@ -1375,7 +1126,7 @@ def visualize_2d_projection(G: nx.DiGraph, positions: Dict[str, Tuple[float, flo
     print("Done.")
 
 
-def visualize_graph_interactive(G: nx.DiGraph, positions: Dict[str, Tuple[float, float, float]], routed_paths: Optional[Dict[str, List[List[Tuple[int, int, int]]]]] = None, failed_nets: Optional[List[Dict]] = None, grid: Optional[RoutingGrid] = None, tunnels: Optional[List[List[Tuple[int, int, int]]]] = None):
+def visualize_graph_interactive(G: nx.DiGraph, positions: Dict[str, Tuple[float, float, float]], routed_paths: Optional[Dict[str, List[List[Tuple[int, int, int]]]]] = None):
     """Visualizes the graph using Plotly for interactive 3D exploration."""
     if go is None:
         print("Plotly is not installed. Skipping interactive visualization.")
@@ -1397,9 +1148,9 @@ def visualize_graph_interactive(G: nx.DiGraph, positions: Dict[str, Tuple[float,
         px, py, pz = x, z, y
         pw, ph, pd = w, d, h
         
-        x_min, x_max = int(round(px - pw/2)), int(round(px + pw/2))
-        y_min, y_max = int(round(py - ph/2)), int(round(py + ph/2))
-        z_min, z_max = int(round(pz - pd/2)), int(round(pz + pd/2))
+        x_min, x_max = px - pw/2, px + pw/2
+        y_min, y_max = py - ph/2, py + ph/2
+        z_min, z_max = pz - pd/2, pz + pd/2
         
         base_idx = len(x_coords)
         
@@ -1494,9 +1245,9 @@ def visualize_graph_interactive(G: nx.DiGraph, positions: Dict[str, Tuple[float,
         
         for pin_name, (pin_ox, pin_oy, pin_oz) in pin_locations.items():
             # Calculate absolute pin position
-            abs_x = int(round(x - w/2 + pin_ox))
-            abs_y = int(round(y - h/2 + pin_oy))
-            abs_z = int(round(z - d/2 + pin_oz))
+            abs_x = x - w/2 + pin_ox
+            abs_y = y - h/2 + pin_oy
+            abs_z = z - d/2 + pin_oz
             
             # Transform to plotly coordinates (swap y and z)
             pin_x.append(abs_x)
@@ -1522,117 +1273,8 @@ def visualize_graph_interactive(G: nx.DiGraph, positions: Dict[str, Tuple[float,
             name='Ports/Pins'
         ))
     
-    # Visualize Constants
-    const_x = []
-    const_y = []
-    const_z = []
-    const_text = []
-    const_colors = []
-    
-    for node, (x, y, z) in positions.items():
-        constants = G.nodes[node].get('constants', {})
-        dims = G.nodes[node].get('dims', (1, 1, 1))
-        w, h, d = dims
-        pin_locations = G.nodes[node].get('pin_locations', {})
-        
-        for pin_name, val in constants.items():
-             if pin_name in pin_locations:
-                 px, py, pz = pin_locations[pin_name]
-                 abs_x = int(round(x - w/2 + px))
-                 abs_y = int(round(y - h/2 + py))
-                 abs_z = int(round(z - d/2 + pz))
-                 
-                 # Calculate vector from center to pin
-                 vx = abs_x - x
-                 vy = abs_y - y
-                 vz = abs_z - z
-                 
-                 # Normalize and apply offset
-                 mag = math.sqrt(vx*vx + vy*vy + vz*vz)
-                 offset = 0.8
-                 if mag > 0:
-                     off_x = (vx / mag) * offset
-                     off_y = (vy / mag) * offset
-                     off_z = (vz / mag) * offset
-                 else:
-                     off_x, off_y, off_z = 0, 0, 0
-                 
-                 const_x.append(abs_x + off_x)
-                 const_y.append(abs_z + off_z) # Swap Y/Z
-                 const_z.append(abs_y + off_y)
-                 const_text.append(val)
-                 const_colors.append('blue' if val == '0' else 'red')
-
-    if const_x:
-        fig.add_trace(go.Scatter3d(
-            x=const_x,
-            y=const_y,
-            z=const_z,
-            mode='text',
-            text=const_text,
-            textfont=dict(
-                size=12,
-                color=const_colors
-            ),
-            hoverinfo='none',
-            name='Constants'
-        ))
-    
-    # Visualize Reserved Cells (Pins and Access Zones)
-    # Disabled in this version as grid is not a numpy array
-    # if grid:
-    #     ...
-
-    # Highlight Failed Connections
-    if failed_nets:
-        fail_x, fail_y, fail_z = [], [], []
-        fail_text = []
-        for fail in failed_nets:
-            start = fail['start']
-            end = fail['end']
-            net = fail['net']
-            
-            fail_x.extend([start[0], end[0]])
-            fail_y.extend([start[2], end[2]]) # Swap Y/Z
-            fail_z.extend([start[1], end[1]])
-            fail_text.extend([f"Failed Start: {net}", f"Failed End: {net}"])
-            
-        if fail_x:
-            fig.add_trace(go.Scatter3d(
-                x=fail_x,
-                y=fail_y,
-                z=fail_z,
-                mode='markers',
-                marker=dict(size=10, color='red', symbol='x'),
-                text=fail_text,
-                hoverinfo='text',
-                name='Failed Connections'
-            ))
 
     
-    if tunnels:
-        print("Adding tunnels to interactive plot...")
-        t_x, t_y, t_z = [], [], []
-        for path in tunnels:
-            for i in range(len(path)):
-                p = path[i]
-                t_x.append(p[0])
-                t_y.append(p[2])
-                t_z.append(p[1])
-            t_x.append(None)
-            t_y.append(None)
-            t_z.append(None)
-            
-        fig.add_trace(go.Scatter3d(
-            x=t_x,
-            y=t_y,
-            z=t_z,
-            mode='lines',
-            line=dict(color='orange', width=3),
-            opacity=0.5,
-            name='Tunnels'
-        ))
-
     if routed_paths:
         print("Adding routed paths to interactive plot...")
         
@@ -1690,7 +1332,9 @@ if __name__ == "__main__":
     print(f"Parsing netlist from {netlist_file}...")
     models = parse_netlist(netlist_file)
     
-    print(f"\nFound {len(models)} nodes.\n")
+    print(f"\nFound {len(models)} nodes:\n")
+    for model in models:
+        print(model)
         
     print("\nBuilding graph...")
     G = build_graph(models)
@@ -1700,14 +1344,10 @@ if __name__ == "__main__":
     optimized_pos = optimize_placement(G, max_time_seconds=timeout)
     
     routed_paths = None
-    failed_nets = None
-    grid = None
-    
-    tunnels = None
     if optimized_pos:
         print("Using optimized placement.")
         # Run routing
-        routed_paths, failed_nets, tunnels = route_nets(G, optimized_pos)
+        routed_paths = route_nets(G, optimized_pos)
         visualize_graph(G, positions=optimized_pos, routed_paths=routed_paths)
     else:
         print("Falling back to spring layout.")
@@ -1715,5 +1355,5 @@ if __name__ == "__main__":
         
     if optimized_pos:
         visualize_2d_projection(G, optimized_pos, routed_paths=routed_paths)
-        visualize_graph_interactive(G, optimized_pos, routed_paths=routed_paths, failed_nets=failed_nets, tunnels=tunnels)
+        visualize_graph_interactive(G, optimized_pos, routed_paths=routed_paths)
 
