@@ -9,7 +9,7 @@ except ImportError:
     go = None
 from .routing import RoutingGrid
 
-def visualize_graph(G: nx.DiGraph, positions: Optional[Dict[str, Tuple[float, float, float]]] = None, routed_paths: Optional[Dict[str, List[List[Tuple[int, int, int]]]]] = None):
+def visualize_graph(G: nx.DiGraph, positions: Optional[Dict[str, Tuple[float, float, float]]] = None, routed_paths: Optional[Dict[str, List[List[Tuple[int, int, int]]]]] = None, output_filename: str = "netlist_graph.png"):
     """Visualizes the graph using a 3D spring layout with approximate bounding boxes."""
     try:
         import matplotlib.pyplot as plt
@@ -121,13 +121,13 @@ def visualize_graph(G: nx.DiGraph, positions: Optional[Dict[str, Tuple[float, fl
     ax.set_zlabel('Y (Height)')
     plt.title("Netlist Graph 3D Layout")
     
-    output_file = "netlist_graph.png"
+    output_file = output_filename
     print(f"Saving graph to {output_file}...")
     plt.savefig(output_file)
     print("Done.")
 
 
-def visualize_2d_projection(G: nx.DiGraph, positions: Dict[str, Tuple[float, float, float]], routed_paths: Optional[Dict[str, List[List[Tuple[int, int, int]]]]] = None):
+def visualize_2d_projection(G: nx.DiGraph, positions: Dict[str, Tuple[float, float, float]], routed_paths: Optional[Dict[str, List[List[Tuple[int, int, int]]]]] = None, output_filename: str = "netlist_projection_2d.png"):
     """Visualizes the graph as a 2D projection on the X-Z plane (top-down)."""
     try:
         import matplotlib.pyplot as plt
@@ -212,13 +212,13 @@ def visualize_2d_projection(G: nx.DiGraph, positions: Dict[str, Tuple[float, flo
     ax.set_ylabel('Z (Depth)')
     plt.title("Netlist 2D Projection (X-Z Plane) with Routing")
     
-    output_file = "netlist_projection_2d.png"
+    output_file = output_filename
     print(f"Saving 2D projection to {output_file}...")
     plt.savefig(output_file, dpi=300)
     print("Done.")
 
 
-def visualize_graph_interactive(G: nx.DiGraph, positions: Dict[str, Tuple[float, float, float]], routed_paths: Optional[Dict[str, List[List[Tuple[int, int, int]]]]] = None, failed_nets: Optional[List[Dict]] = None, grid: Optional[RoutingGrid] = None):
+def visualize_graph_interactive(G: nx.DiGraph, positions: Dict[str, Tuple[float, float, float]], routed_paths: Optional[Dict[str, List[List[Tuple[int, int, int]]]]] = None, failed_nets: Optional[List[Dict]] = None, grid: Optional[RoutingGrid] = None, block_grid: Optional[Dict[Tuple[int, int, int], str]] = None, output_filename: str = "netlist_graph.html"):
     """Visualizes the graph using Plotly for interactive 3D exploration."""
     if go is None:
         print("Plotly is not installed. Skipping interactive visualization.")
@@ -227,6 +227,94 @@ def visualize_graph_interactive(G: nx.DiGraph, positions: Dict[str, Tuple[float,
     print("Generating interactive 3D visualization...")
     fig = go.Figure()
     
+    # --- Block Rendering Configuration ---
+    # Extensible color map for blocks
+    BLOCK_STYLES = {
+        "redstone_wire": {"color": "red", "opacity": 0.8, "name": "Redstone Dust", "ymin": 0.0, "ymax": 0.3},
+        "stone": {"color": "gray", "opacity": 1.0, "name": "Stone"},
+        "default": {"color": "purple", "opacity": 0.5, "name": "Unknown Block"}
+    }
+
+    block_indices = []
+    if block_grid:
+        print(f"Rendering {len(block_grid)} blocks...")
+        
+        # Group blocks by type to create separate traces (better performance and legend toggling)
+        blocks_by_type = {}
+        for coord, block_type in block_grid.items():
+            if block_type not in blocks_by_type:
+                blocks_by_type[block_type] = []
+            blocks_by_type[block_type].append(coord)
+            
+        for block_type, coords in blocks_by_type.items():
+            style = BLOCK_STYLES.get(block_type, BLOCK_STYLES["default"])
+            
+            # We'll use Mesh3d for blocks as well
+            b_x, b_y, b_z = [], [], []
+            b_i, b_j, b_k = [], [], []
+            
+            current_idx = 0
+            
+            for (x, y, z) in coords:
+                # Define vertices for a 1x1x1 cube centered at x, y, z
+                # Note: Plotly uses (x, y, z), but our system uses (x, y=height, z=depth)
+                # We map: system x -> plotly x, system y -> plotly z, system z -> plotly y
+                
+                px, py, pz = x, z, y  # Swapping Y and Z for visualization
+                w, h, d = 1, 1, 1 # Standard block size
+                
+                x_min, x_max = px + 0, px + w
+                y_min, y_max = py + 0, py + d
+                z_min, z_max = pz + style.get("ymin", 0), pz + style.get("ymax", h)
+                
+                # Vertices
+                b_x.extend([x_min, x_max, x_max, x_min, x_min, x_max, x_max, x_min])
+                b_y.extend([y_min, y_min, y_max, y_max, y_min, y_min, y_max, y_max])
+                b_z.extend([z_min, z_min, z_min, z_min, z_max, z_max, z_max, z_max])
+                
+                # Indices for the 12 triangles (6 faces)
+                # Front
+                b_i.extend([current_idx+0, current_idx+0])
+                b_j.extend([current_idx+1, current_idx+2])
+                b_k.extend([current_idx+2, current_idx+3])
+                
+                # Back
+                b_i.extend([current_idx+4, current_idx+4])
+                b_j.extend([current_idx+5, current_idx+6])
+                b_k.extend([current_idx+6, current_idx+7])
+                
+                # Bottom
+                b_i.extend([current_idx+0, current_idx+0])
+                b_j.extend([current_idx+1, current_idx+5])
+                b_k.extend([current_idx+5, current_idx+4])
+                
+                # Top
+                b_i.extend([current_idx+2, current_idx+2])
+                b_j.extend([current_idx+3, current_idx+7])
+                b_k.extend([current_idx+7, current_idx+6])
+                
+                # Left
+                b_i.extend([current_idx+0, current_idx+0])
+                b_j.extend([current_idx+3, current_idx+7])
+                b_k.extend([current_idx+7, current_idx+4])
+                
+                # Right
+                b_i.extend([current_idx+1, current_idx+1])
+                b_j.extend([current_idx+2, current_idx+6])
+                b_k.extend([current_idx+6, current_idx+5])
+                
+                current_idx += 8
+                
+            fig.add_trace(go.Mesh3d(
+                x=b_x, y=b_y, z=b_z,
+                i=b_i, j=b_j, k=b_k,
+                color=style["color"],
+                opacity=style["opacity"],
+                name=style["name"],
+                flatshading=True
+            ))
+            block_indices.append(len(fig.data) - 1)
+
     x_coords = []
     y_coords = []
     z_coords = []
@@ -477,7 +565,8 @@ def visualize_graph_interactive(G: nx.DiGraph, positions: Dict[str, Tuple[float,
         ))
 
     # Update layout
-    fig.update_layout(
+    # Update layout
+    layout_args = dict(
         title="Interactive Netlist 3D Layout",
         scene=dict(
             xaxis_title='X',
@@ -487,8 +576,36 @@ def visualize_graph_interactive(G: nx.DiGraph, positions: Dict[str, Tuple[float,
         ),
         margin=dict(l=0, r=0, b=0, t=40)
     )
+
+    if block_indices:
+        layout_args["updatemenus"] = [
+            dict(
+                type="buttons",
+                direction="left",
+                buttons=list([
+                    dict(
+                        args=[{"visible": True}, block_indices],
+                        label="Show Blocks",
+                        method="restyle"
+                    ),
+                    dict(
+                        args=[{"visible": False}, block_indices],
+                        label="Hide Blocks",
+                        method="restyle"
+                    )
+                ]),
+                pad={"r": 10, "t": 10},
+                showactive=True,
+                x=0.01,
+                xanchor="left",
+                y=1.1,
+                yanchor="top"
+            ),
+        ]
+
+    fig.update_layout(**layout_args)
     
-    output_file = "netlist_graph.html"
+    output_file = output_filename
     print(f"Saving interactive graph to {output_file}...")
     fig.write_html(output_file)
     print("Done.")

@@ -5,6 +5,9 @@ import time
 from collections import deque
 import networkx as nx
 
+def clamp(x, min_val, max_val):
+    return max(min_val, min(x, max_val))
+
 class RoutingGrid:
     def __init__(self, positions: Dict[str, Tuple[float, float, float]], nodes_data: Dict[str, dict]):
         self.positions = positions
@@ -61,36 +64,52 @@ class RoutingGrid:
             return True
         return False
 
+    def get_segment_footprint(self, p1, p2):
+        """Returns the set of coordinates occupied by the segment from p1 to p2."""
+        footprint = set()
+        footprint.add(p1)
+        footprint.add(p2)
+        
+        x, y, z = p1
+        nx, ny, nz = p2
+        dx = nx - x
+        dy = ny - y
+        dz = nz - z
+
+        if abs(dx) > 1 or abs(dz) > 1:
+            mid1 = (x + dx/3, y, z + dz/3)
+            mid2 = (x + 2*dx/3, y, z + 2*dz/3)
+            footprint.add(mid1)
+            footprint.add(mid2)
+        
+        # Check for vertical slope
+        if abs(dy) == 1:
+            mid1 = (x + dx//2, y, z + dz//2)
+            mid2 = (x + dx//2, y + dy, z + dz//2)
+            footprint.add(mid1)
+            footprint.add(mid2)
+
+            # Claim support for downward moves
+            if dy == -1:
+                mid_support = (mid2[0], mid2[1]-1, mid2[2])
+                footprint.add(mid_support)
+        
+        return footprint
+
     def add_path(self, path, net_name):
         for i in range(len(path)):
             p = path[i]
+            # Always add the point itself (redundant with footprint but safe)
             self.blocked_coords.add(p)
             self.wire_occupancy[p] = net_name
 
             if i < len(path) - 1:
                 p1 = path[i]
                 p2 = path[i+1]
-                
-                # Check for vertical slope
-                if abs(p2[1] - p1[1]) == 1:
-                    x, y, z = p1
-                    nx, ny, nz = p2
-                    dx = nx - x
-                    dy = ny - y
-                    dz = nz - z
-                    
-                    mid1 = (x + dx//2, y, z + dz//2)
-                    mid2 = (x + dx//2, y + dy, z + dz//2)
-                    self.blocked_coords.add(mid1)
-                    self.blocked_coords.add(mid2)
-                    self.wire_occupancy[mid1] = net_name
-                    self.wire_occupancy[mid2] = net_name
-
-                    # Claim support for downward moves
-                    if dy == -1:
-                        mid_support = (mid2[0], mid2[1]-1, mid2[2])
-                        self.blocked_coords.add(mid_support)
-                        self.wire_occupancy[mid_support] = net_name
+                footprint = self.get_segment_footprint(p1, p2)
+                for fp in footprint:
+                    self.blocked_coords.add(fp)
+                    self.wire_occupancy[fp] = net_name
 
     def remove_path(self, path):
         """Removes a path from the grid (rip-up)."""
@@ -102,41 +121,30 @@ class RoutingGrid:
             if i < len(path) - 1:
                 p1 = path[i]
                 p2 = path[i+1]
-                
-                if abs(p2[1] - p1[1]) == 1:
-                    x, y, z = p1
-                    nx, ny, nz = p2
-                    dx = nx - x
-                    dy = ny - y
-                    dz = nz - z
-                    
-                    mid1 = (x + dx//2, y, z + dz//2)
-                    mid2 = (x + dx//2, y + dy, z + dz//2)
-                    self.blocked_coords.discard(mid1)
-                    self.blocked_coords.discard(mid2)
-                    self.wire_occupancy.pop(mid1, None)
-                    self.wire_occupancy.pop(mid2, None)
+                footprint = self.get_segment_footprint(p1, p2)
+                for fp in footprint:
+                    self.blocked_coords.discard(fp)
+                    self.wire_occupancy.pop(fp, None)
 
-                    # Release support for downward moves
-                    if dy == -1:
-                        mid_support = (mid2[0], mid2[1]-1, mid2[2])
-                        self.blocked_coords.discard(mid_support)
-                        self.wire_occupancy.pop(mid_support, None)
-
-    def get_neighbors(self, point, allowed_points=None, forceful=False):
+    def get_neighbors(self, point, allowed_points=None, forceful=False, prev_footprint=None):
         x, y, z = point
         moves = [
             # Horizontal moves (slope 0) - Cost 1
             ((x+1, y, z), 1.0), ((x-1, y, z), 1.0),
             ((x, y, z+1), 1.0), ((x, y, z-1), 1.0),
-            # Going through a wire - Cost 1.2 (prefer straight shots over individual horizontal movements)
-            ((x+2, y, z), 1.2), ((x-2, y, z), 1.2),
-            ((x, y, z+2), 1.2), ((x, y, z-2), 1.2),
+            # Going through a wire (must be 3 long) - Cost 1.5 (prefer straight shots over individual horizontal movements)
+            ((x+3, y, z), 1.5), ((x-3, y, z), 1.5),
+            ((x, y, z+3), 1.5), ((x, y, z-3), 1.5),
             # Sloped vertical moves (slope 1/2) - Cost 3 (approx Manhattan dist)
             ((x+2, y+1, z), 3.0), ((x-2, y+1, z), 3.0),
             ((x, y+1, z+2), 3.0), ((x, y+1, z-2), 3.0),
             ((x+2, y-1, z), 3.0), ((x-2, y-1, z), 3.0),
-            ((x, y-1, z+2), 3.0), ((x, y-1, z-2), 3.0)
+            ((x, y-1, z+2), 3.0), ((x, y-1, z-2), 3.0),
+            # Vertical moves (slope 1) - Cost 3
+            #((x+1, y+1, z), 3.0), ((x-1, y+1, z), 3.0),
+            #((x, y+1, z+1), 3.0), ((x, y+1, z-1), 3.0),
+            #((x+1, y-1, z), 3.0), ((x-1, y-1, z), 3.0),
+            #((x, y-1, z+1), 3.0), ((x, y-1, z-1), 3.0),
         ]
         valid = []
         min_x, min_y, min_z = self.min_coords
@@ -161,12 +169,51 @@ class RoutingGrid:
                 if not is_target:
                     if self.is_blocked((nx, ny-1, nz), allowed_points, forceful):
                         continue
+                    if self.is_blocked((nx, ny+1, nz), allowed_points, forceful):
+                        continue
+                    
+                    # Make sure no cross talk with wires in front of the move
+                    if self.is_blocked((nx+clamp(dx, -1, 1), ny, nz+clamp(dz, -1, 1)), allowed_points, forceful):
+                        continue
                     # Check sides (perpendicular) to prevent crosstalk
                     # If moving in X (dx=1, dz=0), check Z neighbors (offset by dx)
                     # If moving in Z (dx=0, dz=1), check X neighbors (offset by dz)
-                    if self.is_blocked((nx+dz, ny, nz+dx), allowed_points, forceful):
+                    if self.is_blocked((nx+clamp(dz, -1, 1), ny, nz+clamp(dx, -1, 1)), allowed_points, forceful):
                         continue
-                    if self.is_blocked((nx-dz, ny, nz-dx), allowed_points, forceful):
+                    if self.is_blocked((nx+clamp(-dz, -1, 1), ny, nz+clamp(-dx, -1, 1)), allowed_points, forceful):
+                        continue
+
+                if abs(dx) == 3 or abs(dz) == 3:
+                    mid1_x = int(nx - dx / 3)
+                    mid1_z = int(nz - dz / 3)
+                    mid2_x = int(mid1_x - dx / 3)
+                    mid2_z = int(mid1_z - dz / 3)
+                    # Must intersect 1 block below other wire
+                    # Only 1 of the blocks on the move may be claimed
+                    m1_blocked = self.is_blocked((mid1_x, ny+1, mid1_z), allowed_points, forceful)
+                    m2_blocked = self.is_blocked((mid2_x, ny+1, mid2_z), allowed_points, forceful)
+                    # Return if both claimed
+                    if m1_blocked and m2_blocked:
+                        continue
+                    # Only allow missing supports if skipping
+                    if (not m1_blocked) and self.is_blocked((mid1_x, ny-1, mid1_z), allowed_points, forceful):
+                        continue
+                    if (not m2_blocked) and self.is_blocked((mid2_x, ny-1, mid2_z), allowed_points, forceful):
+                        continue
+                    # Full path must be clear
+                    if self.is_blocked((mid1_x, ny, mid1_z), allowed_points, forceful):
+                        continue
+                    if self.is_blocked((mid2_x, ny, mid2_z), allowed_points, forceful):
+                        continue
+
+                    # Verify no crosstalk
+                    if self.is_blocked((int(mid1_x+dz/3), ny, int(mid1_z+dx/3)), allowed_points, forceful):
+                        continue
+                    if self.is_blocked((int(mid1_x-dz/3), ny, int(mid1_z-dx/3)), allowed_points, forceful):
+                        continue
+                    if self.is_blocked((int(mid2_x+dz/3), ny, int(mid2_z+dx/3)), allowed_points, forceful):
+                        continue
+                    if self.is_blocked((int(mid2_x-dz/3), ny, int(mid2_z-dx/3)), allowed_points, forceful):
                         continue
 
                 # Check for clipping on vertical moves
@@ -188,10 +235,18 @@ class RoutingGrid:
                     p_dx = dz // 2
                     p_dz = dx // 2
                     
-                    if self.is_blocked((mid2[0]+p_dx, mid2[1], mid2[2]+p_dz), allowed_points, forceful):
-                        continue
-                    if self.is_blocked((mid2[0]-p_dx, mid2[1], mid2[2]-p_dz), allowed_points, forceful):
-                        continue
+                    # Check crosstalk for intermediate wire (mid2)
+                    # Perpendicular offsets: if moving in X, check Z neighbors.
+                    p_dx = dz // 2
+                    p_dz = dx // 2
+                    
+                    # Check y-1, y, y+1 relative to mid2 to catch all vertical crosstalk
+                    # This ensures we don't create step-up/step-down connections that can't be insulated
+                    for y_off in [-1, 0, 1]:
+                        if self.is_blocked((mid2[0]+p_dx, mid2[1]+y_off, mid2[2]+p_dz), allowed_points, forceful):
+                            continue
+                        if self.is_blocked((mid2[0]-p_dx, mid2[1]+y_off, mid2[2]-p_dz), allowed_points, forceful):
+                            continue
 
                 # Apply penalty for bulldozing
                 final_cost = cost
@@ -205,14 +260,24 @@ class RoutingGrid:
                     if is_colliding:
                         final_cost += 20.0 # Penalty for ripping up a net (reduced to avoid A* timeout)
 
+                # Check for backtracking/self-intersection
+                if prev_footprint:
+                    current_footprint = self.get_segment_footprint(point, (nx, ny, nz))
+                    # We must exclude the shared point (current point) from the intersection check
+                    # The shared point is 'point' (x, y, z)
+                    intersection = current_footprint.intersection(prev_footprint)
+                    intersection.discard(point)
+                    if intersection:
+                        continue
+
                 valid.append(((nx, ny, nz), final_cost))
         return valid
 
 
-def a_star(start, goal, grid, allowed_points, max_steps=50000, forceful=False):
+def a_star(start, goal, grid, allowed_points, max_steps=5000, forceful=False):
     def h(p1, p2):
         # Standard Manhattan distance
-        return abs(p1[0]-p2[0]) + abs(p1[1]-p2[1]) + abs(p1[2]-p2[2])
+        return abs(p1[0]-p2[0]) + abs(p1[1]-p2[1]) * 2 + abs(p1[2]-p2[2])
         
     open_set = []
     heapq.heappush(open_set, (h(start, goal), 0, start))
@@ -220,7 +285,6 @@ def a_star(start, goal, grid, allowed_points, max_steps=50000, forceful=False):
     came_from = {}
     g_score = {start: 0}
     steps = 0
-    
     while open_set:
         _, current_g, current = heapq.heappop(open_set)
         
@@ -236,8 +300,13 @@ def a_star(start, goal, grid, allowed_points, max_steps=50000, forceful=False):
                 current = came_from[current]
             path.append(start)
             return path[::-1]
+
+        prev_footprint = None
+        if current in came_from:
+            previous = came_from[current]
+            prev_footprint = grid.get_segment_footprint(previous, current)
             
-        for neighbor, move_cost in grid.get_neighbors(current, allowed_points, forceful):
+        for neighbor, move_cost in grid.get_neighbors(current, allowed_points, forceful, prev_footprint):
             if grid.is_blocked(neighbor, allowed_points, forceful):
                 continue
                 
@@ -404,10 +473,11 @@ def route_nets(G: nx.DiGraph, positions: Dict[str, Tuple[float, float, float]], 
     MAX_RIP_UPS = 10
     
     while routing_queue:
+        print(f"{len(routing_queue)}/{total_nets} nets remaining...\r", end="")
         if max_time_seconds and (time.time() - start_time > max_time_seconds):
             print(f"Stopping routing after {max_time_seconds} seconds.")
             break
-            
+
         net_name = routing_queue.popleft()
         net_data = nets[net_name]
         
@@ -485,7 +555,7 @@ def route_nets(G: nx.DiGraph, positions: Dict[str, Tuple[float, float, float]], 
                 if rip_up_counts[net_name] < MAX_RIP_UPS:
                     # print(f"  [Force] Net {net_name} needs to bulldoze...")
                     # Increase max_steps for forceful search to ensure we find a path even if it's long
-                    path = a_star(start, end, grid, allowed_points, max_steps=100000, forceful=True)
+                    path = a_star(start, end, grid, allowed_points, max_steps=10000, forceful=True)
                     
                     if path:
                         # Identify collisions
@@ -518,11 +588,6 @@ def route_nets(G: nx.DiGraph, positions: Dict[str, Tuple[float, float, float]], 
                 
             if path:
                 current_net_paths.append(path)
-                # We don't add to grid yet? No, we must add to grid immediately so subsequent segments of THIS net respect it.
-                # But if we fail later in this net, we might need to rollback?
-                # For now, let's assume we commit segment by segment.
-                # Wait, if we are in forceful mode, we might be stepping on nets we just ripped up?
-                # No, we ripped them up, so they are gone from grid.
                 
                 grid.add_path(path, net_name)
                 for p in path:
@@ -545,25 +610,25 @@ def route_nets(G: nx.DiGraph, positions: Dict[str, Tuple[float, float, float]], 
                 success = False
         
         # Add the used portion of the driver tunnel to the routed paths
-        if driver_tunnel:
-            driver_tunnel_indices = {p: i for i, p in enumerate(driver_tunnel)}
+        if start_tunnel:
+            driver_tunnel_indices = {p: i for i, p in enumerate(start_tunnel)}
             max_driver_idx = -1
             
             # Check all points in the routed paths to see how far up the tunnel we went
             for path in current_net_paths:
-                if path and path[0] in driver_tunnel_indices:
-                    idx = driver_tunnel_indices[path[0]]
-                    max_driver_idx = max(max_driver_idx, idx)
-                if path and path[-1] in driver_tunnel_indices:
-                    idx = driver_tunnel_indices[path[-1]]
-                    max_driver_idx = max(max_driver_idx, idx)
+                if not path: continue
+                # Check all points, not just endpoints, to be safe
+                for p in path:
+                    if p in driver_tunnel_indices:
+                        idx = driver_tunnel_indices[p]
+                        max_driver_idx = max(max_driver_idx, idx)
             
             # Also check the start point itself (index 0 of tunnel usually)
             # Actually, the tunnel starts at index 0 near the driver.
             # If we used any point in the tunnel, we need the segment from 0 to that point.
             
             if max_driver_idx >= 0:
-                used_tunnel = driver_tunnel[:max_driver_idx+1]
+                used_tunnel = start_tunnel[:max_driver_idx+1]
                 # Only add if it has length (more than 1 point or just 1 point? A path usually needs 2 points to be a line)
                 # But a single point path is valid for connectivity if it overlaps.
                 # Let's add it if it's not empty.

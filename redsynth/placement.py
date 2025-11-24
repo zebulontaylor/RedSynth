@@ -62,10 +62,10 @@ class SpatialIndex:
         return False
 
 
-def optimize_placement(G: nx.DiGraph, max_time_seconds: float = 60.0) -> Dict[str, Tuple[float, float, float]]:
+def calculate_spring_layout(G: nx.DiGraph, max_time_seconds: float = 60.0) -> Dict[str, Tuple[float, float, float]]:
     """
-    Optimizes component placement using a force-directed algorithm (Spring Layout)
-    followed by a legalization step to resolve collisions and align to grid.
+    Calculates the initial placement using a force-directed algorithm (Spring Layout).
+    Returns the raw positions before legalization.
     """
     print("Starting force-directed placement (Spring Layout)...")
     
@@ -76,7 +76,7 @@ def optimize_placement(G: nx.DiGraph, max_time_seconds: float = 60.0) -> Dict[st
     if n_nodes == 0:
         return {}
         
-    scale = max(20, int(n_nodes ** (1/3) * 4))
+    scale = max(80, int(n_nodes ** (1/3) * 4))
     
     pos = {}
     fixed_nodes = []
@@ -110,13 +110,13 @@ def optimize_placement(G: nx.DiGraph, max_time_seconds: float = 60.0) -> Dict[st
         k=k_val, 
         pos=pos, 
         fixed=fixed_nodes if fixed_nodes else None, 
-        iterations=1000, 
+        iterations=4000, 
         weight='weight', 
-        seed=42, 
+        seed=42,
         scale=scale
     )
     
-    iterations = 100
+    iterations = 2000
     t = scale * 0.1
     dt = t / (iterations + 1)
     y_gravity = 0.5
@@ -170,17 +170,21 @@ def optimize_placement(G: nx.DiGraph, max_time_seconds: float = 60.0) -> Dict[st
         t -= dt
         
     raw_pos = {n: tuple(pos_arr[i]) for i, n in enumerate(nodes)}
-    
+    return raw_pos
+
+
+def legalize_placement(G: nx.DiGraph, raw_pos: Dict[str, Tuple[float, float, float]]) -> Dict[str, Tuple[float, float, float]]:
+    """
+    Legalizes the placement by resolving collisions and aligning to grid.
+    """
     print("Legalizing placement (resolving collisions)...")
     
+    n_nodes = len(G.nodes())
     node_info = {}
     for node in G.nodes():
         dims = G.nodes[node].get('dims', (1, 1, 1))
         w, h, d = int(dims[0]), int(dims[1]), int(dims[2])
-        if 'pin_locations' not in G.nodes[node]:
-            padding = 8
-        else:
-            padding = int(len(G.nodes[node]['pin_locations']) * 8 / h)
+        padding = 16 #int(len(G.nodes[node]['pin_locations']) * 11 / h)
         node_info[node] = {
             'w': w, 'h': h, 'd': d,
             'w_padded': w + padding, 
@@ -246,7 +250,7 @@ def optimize_placement(G: nx.DiGraph, max_time_seconds: float = 60.0) -> Dict[st
                 n_x, n_y, n_z = raw_positions[neighbor]
                 px, py, pz = raw_positions[node]
                 # Dont weight wire cost for raw positions as heavily
-                cost += (abs(n_x - px) + abs(n_y - py) + abs(n_z - pz)) * 0.2
+                cost += (abs(n_x - px) + abs(n_y - py) + abs(n_z - pz)) * 0.5
             else:
                 continue
                 
@@ -257,7 +261,7 @@ def optimize_placement(G: nx.DiGraph, max_time_seconds: float = 60.0) -> Dict[st
     spiral_offsets_cache = []
     pq = [(0.0, 0.0, 0, 0, 0)]
     visited_offsets = {(0, 0, 0)}
-    Y_PENALTY = 20.0
+    Y_PENALTY = 40.0
     MAX_OFFSETS = 1000000 # Limit search space
     
     while pq and len(spiral_offsets_cache) < MAX_OFFSETS:
@@ -272,7 +276,7 @@ def optimize_placement(G: nx.DiGraph, max_time_seconds: float = 60.0) -> Dict[st
             if (next_x, next_y, next_z) not in visited_offsets:
                 visited_offsets.add((next_x, next_y, next_z))
                 effective_y_penalty = Y_PENALTY * abs(next_y) / (abs(next_x) + abs(next_z) + 1)
-                effective_y_penalty = max(effective_y_penalty - 0.25, 0.1)
+                effective_y_penalty = max(effective_y_penalty - 0.15, 0.1)
                 new_cost = next_x*next_x + effective_y_penalty * next_y*next_y + next_z*next_z
                 heapq.heappush(pq, (new_cost, random.random(), next_x, next_y, next_z))
 
@@ -383,3 +387,12 @@ def optimize_placement(G: nx.DiGraph, max_time_seconds: float = 60.0) -> Dict[st
         
     print(f"\nPlacement complete.")
     return final_positions
+
+
+def optimize_placement(G: nx.DiGraph, max_time_seconds: float = 60.0) -> Dict[str, Tuple[float, float, float]]:
+    """
+    Optimizes component placement using a force-directed algorithm (Spring Layout)
+    followed by a legalization step to resolve collisions and align to grid.
+    """
+    raw_pos = calculate_spring_layout(G, max_time_seconds)
+    return legalize_placement(G, raw_pos)
