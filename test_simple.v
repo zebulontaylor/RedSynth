@@ -6,6 +6,7 @@ module test_simple(
     input wire a,
     input wire b,
     input wire c,
+    input wire[7:0] d,
     output wire out1,
     output wire out2
 );
@@ -30,6 +31,6 @@ end
 
 // Outputs
 assign out1 = not_a & dff_out;        // Another AND gate
-assign out2 = dff_out;
+assign out2 = dff_out ^ &d;
 
 endmodule

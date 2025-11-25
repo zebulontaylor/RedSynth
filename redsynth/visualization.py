@@ -518,9 +518,13 @@ def visualize_graph_interactive(G: nx.DiGraph, positions: Dict[str, Tuple[float,
             end = fail['end']
             net = fail['net']
             
-            fail_x.extend([start[0], end[0]])
-            fail_y.extend([start[2], end[2]]) # Swap Y/Z
-            fail_z.extend([start[1], end[1]])
+            # Scale grid coordinates to world coordinates (x2)
+            sx, sy, sz = start[0]*2, start[1]*2, start[2]*2
+            ex, ey, ez = end[0]*2, end[1]*2, end[2]*2
+            
+            fail_x.extend([sx, ex])
+            fail_y.extend([sz, ez]) # Swap Y/Z
+            fail_z.extend([sy, ey])
             fail_text.extend([f"Failed Start: {net}", f"Failed End: {net}"])
             
         if fail_x:

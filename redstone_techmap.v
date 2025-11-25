@@ -241,3 +241,57 @@ module _80_redstone_mux8 (A, B, S, Y);
         end
     endgenerate
 endmodule
+
+(* techmap_celltype = "$reduce_and" *)
+module _80_redstone_reduce_and8 (A, Y);
+    parameter A_SIGNED = 0;
+    parameter A_WIDTH = 1;
+    parameter Y_WIDTH = 1;
+
+    input [A_WIDTH-1:0] A;
+    output [Y_WIDTH-1:0] Y;
+
+    generate
+        if (A_WIDTH == 8 && Y_WIDTH == 1) begin
+            RS_REDUCE_AND _TECHMAP_REPLACE_ (.A(A), .Y(Y));
+        end else begin
+            wire _TECHMAP_FAIL_ = 1;
+        end
+    endgenerate
+endmodule
+
+(* techmap_celltype = "$reduce_or" *)
+module _80_redstone_reduce_or8 (A, Y);
+    parameter A_SIGNED = 0;
+    parameter A_WIDTH = 1;
+    parameter Y_WIDTH = 1;
+
+    input [A_WIDTH-1:0] A;
+    output [Y_WIDTH-1:0] Y;
+
+    generate
+        if (A_WIDTH == 8 && Y_WIDTH == 1) begin
+            RS_REDUCE_OR _TECHMAP_REPLACE_ (.A(A), .Y(Y));
+        end else begin
+            wire _TECHMAP_FAIL_ = 1;
+        end
+    endgenerate
+endmodule
+
+(* techmap_celltype = "$reduce_xor" *)
+module _80_redstone_reduce_xor8 (A, Y);
+    parameter A_SIGNED = 0;
+    parameter A_WIDTH = 1;
+    parameter Y_WIDTH = 1;
+
+    input [A_WIDTH-1:0] A;
+    output [Y_WIDTH-1:0] Y;
+
+    generate
+        if (A_WIDTH == 8 && Y_WIDTH == 1) begin
+            RS_REDUCE_XOR _TECHMAP_REPLACE_ (.A(A), .Y(Y));
+        end else begin
+            wire _TECHMAP_FAIL_ = 1;
+        end
+    endgenerate
+endmodule

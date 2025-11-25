@@ -14,28 +14,38 @@ class RoutingGrid:
         self.nodes_data = nodes_data
         self.blocked_coords = set()
         self.node_occupancy = {}
-        self.wire_occupancy = {} # (x,y,z) -> net_name
+        self.node_to_coords = {} # name -> Set[coord]
+        self.wire_occupancy = {} # (gx, gy, gz) -> Set[net_name]
+        self.wire_directions = {} # (gx, gy, gz) -> Set[Tuple[int, int, int]]
+        
+        # Initialize bounds with infinity
         self.min_coords = [float('inf')] * 3
         self.max_coords = [float('-inf')] * 3
+        
         self._build_grid()
 
+    def _to_grid(self, val):
+        return int(math.floor(val / 2))
+
     def _build_grid(self):
+        # Calculate bounds in Grid Coordinates
         for pos in self.positions.values():
             for i in range(3):
                 self.min_coords[i] = min(self.min_coords[i], pos[i])
                 self.max_coords[i] = max(self.max_coords[i], pos[i])
         
-        padding = 10
-        self.min_coords = [int(x - padding) for x in self.min_coords]
-        self.max_coords = [int(x + padding) for x in self.max_coords]
+        padding = 12
+        self.min_coords = [self._to_grid(x - padding) for x in self.min_coords]
+        self.max_coords = [self._to_grid(x + padding) for x in self.max_coords]
 
-        print("Building routing grid obstacles...")
+        print("Building routing grid obstacles (Voxel Mode)...")
         for name, pos in self.positions.items():
             dims = self.nodes_data[name].get('dims', (1, 1, 1))
             w, h, d = int(dims[0]), int(dims[1]), int(dims[2])
             x, y, z = pos[0], pos[1], pos[2]
             
-            pad = 1
+            # Pad the obstacle slightly in world space before converting
+            pad = 0
             x_start = math.floor(x - w/2 - pad)
             x_end = math.ceil(x + w/2 + pad)
             y_start = math.floor(y - h/2 - pad)
@@ -43,26 +53,39 @@ class RoutingGrid:
             z_start = math.floor(z - d/2 - pad)
             z_end = math.ceil(z + d/2 + pad)
             
+            # Mark all voxels that intersect with this volume
             for ix in range(x_start, x_end + 1):
                 for iy in range(y_start, y_end + 1):
                     for iz in range(z_start, z_end + 1):
-                        coord = (ix, iy, iz)
+                        gx, gy, gz = self._to_grid(ix), self._to_grid(iy), self._to_grid(iz)
+                        coord = (gx, gy, gz)
                         self.blocked_coords.add(coord)
                         self.node_occupancy[coord] = name
+                        if name not in self.node_to_coords:
+                            self.node_to_coords[name] = set()
+                        self.node_to_coords[name].add(coord)
+
+    def _is_cardinal(self, vec):
+        return sum(1 for v in vec if v != 0) == 1
+
+    def _is_perpendicular(self, v1, v2):
+        return v1[0]*v2[0] + v1[1]*v2[1] + v1[2]*v2[2] == 0
 
     def is_blocked(self, point, allowed_points=None, forceful=False):
         if point in self.blocked_coords:
             if allowed_points and point in allowed_points:
                 return False
             
-            # If forceful, only hard obstacles (nodes) block us. Wires don't.
             if forceful:
                 if point in self.node_occupancy:
                     return True
-                return False # It's a wire, so we can bulldoze (at a cost)
+                return False # Bulldoze wires
                 
             return True
         return False
+
+    def get_node_coords(self, node_name):
+        return self.node_to_coords.get(node_name, set())
 
     def get_segment_footprint(self, p1, p2):
         """Returns the set of coordinates occupied by the segment from p1 to p2."""
@@ -72,80 +95,114 @@ class RoutingGrid:
         
         x, y, z = p1
         nx, ny, nz = p2
-        dx = nx - x
         dy = ny - y
+        dx = nx - x
         dz = nz - z
 
-        if abs(dx) > 1 or abs(dz) > 1:
-            mid1 = (x + dx/3, y, z + dz/3)
-            mid2 = (x + 2*dx/3, y, z + 2*dz/3)
-            footprint.add(mid1)
-            footprint.add(mid2)
-        
-        # Check for vertical slope
-        if abs(dy) == 1:
-            mid1 = (x + dx//2, y, z + dz//2)
-            mid2 = (x + dx//2, y + dy, z + dz//2)
-            footprint.add(mid1)
-            footprint.add(mid2)
-
-            # Claim support for downward moves
-            if dy == -1:
-                mid_support = (mid2[0], mid2[1]-1, mid2[2])
-                footprint.add(mid_support)
+        # Vertical claim logic for diagonals
+        if abs(dy) > 0:
+            mx = x + dx // 2
+            my = y + dy // 2
+            mz = z + dz // 2
+            footprint.add((mx, my, mz))
+            if dy > 0:
+                # Upward move: claim voxel above start
+                footprint.add((mx, my + 1, mz))
+            else:
+                # Downward move: claim voxel below start
+                footprint.add((mx, my - 1, mz))
         
         return footprint
 
     def add_path(self, path, net_name):
         for i in range(len(path)):
             p = path[i]
-            # Always add the point itself (redundant with footprint but safe)
             self.blocked_coords.add(p)
-            self.wire_occupancy[p] = net_name
+            if p not in self.wire_occupancy:
+                self.wire_occupancy[p] = set()
+            self.wire_occupancy[p].add(net_name)
 
             if i < len(path) - 1:
                 p1 = path[i]
                 p2 = path[i+1]
+                
+                # Track directions
+                dx, dy, dz = p2[0]-p1[0], p2[1]-p1[1], p2[2]-p1[2]
+                # We store the direction of the wire segment at both endpoints
+                # p1 has outgoing vector (dx, dy, dz)
+                # p2 has incoming vector (-dx, -dy, -dz)
+                for pt, d in [(p1, (dx, dy, dz)), (p2, (-dx, -dy, -dz))]:
+                    if pt not in self.wire_directions:
+                        self.wire_directions[pt] = set()
+                    self.wire_directions[pt].add(d)
+
                 footprint = self.get_segment_footprint(p1, p2)
                 for fp in footprint:
                     self.blocked_coords.add(fp)
-                    self.wire_occupancy[fp] = net_name
+                    if fp not in self.wire_occupancy:
+                        self.wire_occupancy[fp] = set()
+                    self.wire_occupancy[fp].add(net_name)
 
-    def remove_path(self, path):
-        """Removes a path from the grid (rip-up)."""
+    def remove_path(self, path, net_name):
         for i in range(len(path)):
             p = path[i]
-            self.blocked_coords.discard(p)
-            self.wire_occupancy.pop(p, None)
-
+            
+            if p in self.wire_occupancy:
+                self.wire_occupancy[p].discard(net_name)
+                if not self.wire_occupancy[p]:
+                    del self.wire_occupancy[p]
+                    self.blocked_coords.discard(p)
+                    if p in self.wire_directions:
+                        del self.wire_directions[p]
+            
             if i < len(path) - 1:
                 p1 = path[i]
                 p2 = path[i+1]
+                
+                # Remove directions
+                dx, dy, dz = p2[0]-p1[0], p2[1]-p1[1], p2[2]-p1[2]
+                for pt, d in [(p1, (dx, dy, dz)), (p2, (-dx, -dy, -dz))]:
+                    if pt in self.wire_directions:
+                        self.wire_directions[pt].discard(d)
+                        if not self.wire_directions[pt]:
+                            del self.wire_directions[pt]
+
                 footprint = self.get_segment_footprint(p1, p2)
                 for fp in footprint:
-                    self.blocked_coords.discard(fp)
-                    self.wire_occupancy.pop(fp, None)
+                    if fp in self.wire_occupancy:
+                        self.wire_occupancy[fp].discard(net_name)
+                        if not self.wire_occupancy[fp]:
+                            del self.wire_occupancy[fp]
+                            self.blocked_coords.discard(fp)
 
-    def get_neighbors(self, point, allowed_points=None, forceful=False, prev_footprint=None):
+    def get_neighbors(self, point, allowed_points=None, forceful=False, prev_footprint=None, penalty_points=None, start_point=None, goal_point=None):
         x, y, z = point
-        moves = [
-            # Horizontal moves (slope 0) - Cost 1
-            ((x+1, y, z), 1.0), ((x-1, y, z), 1.0),
-            ((x, y, z+1), 1.0), ((x, y, z-1), 1.0),
-            # Going through a wire (must be 3 long) - Cost 1.5 (prefer straight shots over individual horizontal movements)
-            ((x+3, y, z), 1.5), ((x-3, y, z), 1.5),
-            ((x, y, z+3), 1.5), ((x, y, z-3), 1.5),
-            # Sloped vertical moves (slope 1/2) - Cost 3 (approx Manhattan dist)
-            ((x+2, y+1, z), 3.0), ((x-2, y+1, z), 3.0),
-            ((x, y+1, z+2), 3.0), ((x, y+1, z-2), 3.0),
-            ((x+2, y-1, z), 3.0), ((x-2, y-1, z), 3.0),
-            ((x, y-1, z+2), 3.0), ((x, y-1, z-2), 3.0),
-            # Vertical moves (slope 1) - Cost 3
-            #((x+1, y+1, z), 3.0), ((x-1, y+1, z), 3.0),
-            #((x, y+1, z+1), 3.0), ((x, y+1, z-1), 3.0),
-            #((x+1, y-1, z), 3.0), ((x-1, y-1, z), 3.0),
-            #((x, y-1, z+1), 3.0), ((x, y-1, z-1), 3.0),
+        
+        # New Move Set: Cardinals + Diagonals
+        moves = []
+        
+        # Cardinals (Cost 1.0)
+        cardinals = [
+            (1, 0, 0), (-1, 0, 0),
+            (0, 0, 1), (0, 0, -1)
         ]
+        for dx, dy, dz in cardinals:
+            moves.append(((x+dx, y+dy, z+dz), 1.0))
+            
+        # Diagonals (Cost 1.414)
+        # We only allow diagonals that change 2 coordinates (planar diagonals)
+        # For redstone, usually we care about:
+        # - Up/Down + Horizontal (Staircase) -> dy != 0 and (dx != 0 or dz != 0)
+        slopes = [
+            (2, 1, 0), (2, -1, 0),
+            (-2, 1, 0), (-2, -1, 0),
+            (0, 1, 2), (0, -1, 2),
+            (0, 1, -2), (0, -1, -2)
+        ]
+
+        for dx, dy, dz in slopes:
+            moves.append(((x+dx, y+dy, z+dz), 2.5))
+
         valid = []
         min_x, min_y, min_z = self.min_coords
         max_x, max_y, max_z = self.max_coords
@@ -155,129 +212,132 @@ class RoutingGrid:
                 min_y <= ny <= max_y and
                 min_z <= nz <= max_z):
                 
+                # Check destination
                 if self.is_blocked((nx, ny, nz), allowed_points, forceful):
-                    continue
-                # Wires are 2 tall.
-                # If the target point is an allowed point (e.g. a pin or existing wire), we skip the height check
-                # to allow connecting to pins that might be flush against a component, or traversing existing wires.
-                is_target = allowed_points is not None and (nx, ny, nz) in allowed_points
-
-                dx = nx - x
-                dy = ny - y
-                dz = nz - z
+                    # Check for valid crossing
+                    can_cross = False
+                    if not forceful:
+                        # Only allow crossing if blocked by WIRE, not NODE
+                        if (nx, ny, nz) not in self.node_occupancy:
+                             move_vec = (nx - x, ny - y, nz - z)
+                             if self._is_cardinal(move_vec) and move_vec[1] == 0:
+                                 # Check if we can cross INTO destination (perpendicular to dest wires)
+                                 if (nx, ny, nz) in self.wire_directions:
+                                     existing_dirs = self.wire_directions[(nx, ny, nz)]
+                                     # Must be perpendicular to ALL existing directions at this point
+                                     if existing_dirs and all(self._is_cardinal(d) and self._is_perpendicular(d, move_vec) for d in existing_dirs):
+                                         can_cross = True
+                                 elif (nx, ny, nz) in self.wire_occupancy:
+                                     # Point has wire but no directions - it's a claimed point (port/footprint)
+                                     # Allow crossing since we can't determine direction conflicts
+                                     can_cross = True
+                                 
+                                 # Also allow crossing if we're EXITING perpendicular from current point
+                                 # This handles the case where we're at a port that another wire crosses through
+                                 if not can_cross and (x, y, z) in self.wire_directions:
+                                     src_dirs = self.wire_directions[(x, y, z)]
+                                     if src_dirs and all(self._is_cardinal(d) and self._is_perpendicular(d, move_vec) for d in src_dirs):
+                                         can_cross = True
+                    
+                    if not can_cross:
+                        continue
                 
-                if not is_target:
-                    if self.is_blocked((nx, ny-1, nz), allowed_points, forceful):
-                        continue
-                    if self.is_blocked((nx, ny+1, nz), allowed_points, forceful):
-                        continue
-                    
-                    # Make sure no cross talk with wires in front of the move
-                    if self.is_blocked((nx+clamp(dx, -1, 1), ny, nz+clamp(dz, -1, 1)), allowed_points, forceful):
-                        continue
-                    # Check sides (perpendicular) to prevent crosstalk
-                    # If moving in X (dx=1, dz=0), check Z neighbors (offset by dx)
-                    # If moving in Z (dx=0, dz=1), check X neighbors (offset by dz)
-                    if self.is_blocked((nx+clamp(dz, -1, 1), ny, nz+clamp(dx, -1, 1)), allowed_points, forceful):
-                        continue
-                    if self.is_blocked((nx+clamp(-dz, -1, 1), ny, nz+clamp(-dx, -1, 1)), allowed_points, forceful):
+                # Check vertical claims for diagonals
+                dy = ny - y
+                dx = nx - x
+                dz = nz - z
+                if dy != 0:
+                    # If moving vertically, we must claim the space directly above/below the start
+                    # to prevent cutting corners.
+                    check_pos = (x, y + (1 if dy > 0 else -1), z)
+                    mid_pos = (x + dx // 2, y, z + dz // 2)
+                    if self.is_blocked(mid_pos, allowed_points, forceful):
                         continue
 
-                if abs(dx) == 3 or abs(dz) == 3:
-                    mid1_x = int(nx - dx / 3)
-                    mid1_z = int(nz - dz / 3)
-                    mid2_x = int(mid1_x - dx / 3)
-                    mid2_z = int(mid1_z - dz / 3)
-                    # Must intersect 1 block below other wire
-                    # Only 1 of the blocks on the move may be claimed
-                    m1_blocked = self.is_blocked((mid1_x, ny+1, mid1_z), allowed_points, forceful)
-                    m2_blocked = self.is_blocked((mid2_x, ny+1, mid2_z), allowed_points, forceful)
-                    # Return if both claimed
-                    if m1_blocked and m2_blocked:
-                        continue
-                    # Only allow missing supports if skipping
-                    if (not m1_blocked) and self.is_blocked((mid1_x, ny-1, mid1_z), allowed_points, forceful):
-                        continue
-                    if (not m2_blocked) and self.is_blocked((mid2_x, ny-1, mid2_z), allowed_points, forceful):
-                        continue
-                    # Full path must be clear
-                    if self.is_blocked((mid1_x, ny, mid1_z), allowed_points, forceful):
-                        continue
-                    if self.is_blocked((mid2_x, ny, mid2_z), allowed_points, forceful):
-                        continue
-
-                    # Verify no crosstalk
-                    if self.is_blocked((int(mid1_x+dz/3), ny, int(mid1_z+dx/3)), allowed_points, forceful):
-                        continue
-                    if self.is_blocked((int(mid1_x-dz/3), ny, int(mid1_z-dx/3)), allowed_points, forceful):
-                        continue
-                    if self.is_blocked((int(mid2_x+dz/3), ny, int(mid2_z+dx/3)), allowed_points, forceful):
-                        continue
-                    if self.is_blocked((int(mid2_x-dz/3), ny, int(mid2_z-dx/3)), allowed_points, forceful):
-                        continue
-
-                # Check for clipping on vertical moves
-                if abs(dy) == 1:
-                    mid1 = (x + dx//2, y, z + dz//2)
-                    mid2 = (x + dx//2, y + dy, z + dz//2)
-                    
-                    if (self.is_blocked(mid1, allowed_points, forceful) or self.is_blocked(mid2, allowed_points, forceful)):
-                        continue
-
-                    # Check support for downward moves (mid2 needs support at y-2)
-                    if dy == -1:
-                        mid_support = (mid2[0], mid2[1]-1, mid2[2])
-                        if self.is_blocked(mid_support, allowed_points, forceful):
+                    if self.is_blocked(check_pos, allowed_points, forceful):
+                        # Allow if the blocking element is a wire moving in the same direction (parallel stack)
+                        is_compatible = False
+                        if not forceful and check_pos in self.wire_directions:
+                            move_vec = (nx - x, ny - y, nz - z)
+                            if move_vec in self.wire_directions[check_pos]:
+                                is_compatible = True
+                        
+                        if not is_compatible:
                             continue
-
-                    # Check crosstalk for intermediate wire (mid2)
-                    # Perpendicular offsets: if moving in X, check Z neighbors.
-                    p_dx = dz // 2
-                    p_dz = dx // 2
-                    
-                    # Check crosstalk for intermediate wire (mid2)
-                    # Perpendicular offsets: if moving in X, check Z neighbors.
-                    p_dx = dz // 2
-                    p_dz = dx // 2
-                    
-                    # Check y-1, y, y+1 relative to mid2 to catch all vertical crosstalk
-                    # This ensures we don't create step-up/step-down connections that can't be insulated
-                    for y_off in [-1, 0, 1]:
-                        if self.is_blocked((mid2[0]+p_dx, mid2[1]+y_off, mid2[2]+p_dz), allowed_points, forceful):
-                            continue
-                        if self.is_blocked((mid2[0]-p_dx, mid2[1]+y_off, mid2[2]-p_dz), allowed_points, forceful):
-                            continue
-
-                # Apply penalty for bulldozing
+                
+                # Apply penalty for bulldozing - count ALL unique nets in footprint
                 final_cost = cost
                 if forceful:
-                    # Check if we are stepping on a wire (soft block)
-                    # We check the point and the point above it (since wires are 2 tall)
-                    is_colliding = False
-                    if (nx, ny, nz) in self.wire_occupancy: is_colliding = True
-                    if (nx, ny+1, nz) in self.wire_occupancy: is_colliding = True
+                    bulldozed_nets = set()
+                    bulldozed_points = set()  # Track which points each net is bulldozed at
+                    # Check destination
+                    if (nx, ny, nz) in self.wire_occupancy:
+                        bulldozed_nets.update(self.wire_occupancy[(nx, ny, nz)])
+                        bulldozed_points.add((nx, ny, nz))
+                    # Check full footprint for slope moves
+                    if dy != 0:
+                        footprint = self.get_segment_footprint((x, y, z), (nx, ny, nz))
+                        for fp in footprint:
+                            if fp in self.wire_occupancy:
+                                bulldozed_nets.update(self.wire_occupancy[fp])
+                                bulldozed_points.add(fp)
                     
-                    if is_colliding:
-                        final_cost += 20.0 # Penalty for ripping up a net (reduced to avoid A* timeout)
+                    # Calculate penalty - reduce for sloped wires and wires near endpoints
+                    for net in bulldozed_nets:
+                        is_sloped = False
+                        is_near_endpoint = False
+                        for bp in bulldozed_points:
+                            if bp in self.wire_directions:
+                                for d in self.wire_directions[bp]:
+                                    if d[1] != 0:  # Has vertical component = sloped
+                                        is_sloped = True
+                                        break
+                            # Check if within 1 block of start or goal
+                            if start_point:
+                                dist_to_start = abs(bp[0]-start_point[0]) + abs(bp[1]-start_point[1]) + abs(bp[2]-start_point[2])
+                                if dist_to_start <= 1:
+                                    is_near_endpoint = True
+                            if goal_point:
+                                dist_to_goal = abs(bp[0]-goal_point[0]) + abs(bp[1]-goal_point[1]) + abs(bp[2]-goal_point[2])
+                                if dist_to_goal <= 1:
+                                    is_near_endpoint = True
+                        
+                        # Base penalty 400, halved for slopes, halved again for near endpoints
+                        base_penalty = 400.0
+                        if is_sloped:
+                            base_penalty = 200.0
+                        if is_near_endpoint:
+                            base_penalty *= 0.5
+                        final_cost += base_penalty
 
-                # Check for backtracking/self-intersection
-                if prev_footprint:
-                    current_footprint = self.get_segment_footprint(point, (nx, ny, nz))
-                    # We must exclude the shared point (current point) from the intersection check
-                    # The shared point is 'point' (x, y, z)
-                    intersection = current_footprint.intersection(prev_footprint)
-                    intersection.discard(point)
-                    if intersection:
-                        continue
+                # Apply penalty for differing from neighbors above/below
+                move_vec = (nx - x, ny - y, nz - z)
+                
+                # Check Up
+                up_pos = (x, y+1, z)
+                if up_pos in self.wire_directions:
+                     if move_vec not in self.wire_directions[up_pos]:
+                         final_cost += 0.1
+                         
+                # Check Down
+                down_pos = (x, y-1, z)
+                if down_pos in self.wire_directions:
+                     if move_vec not in self.wire_directions[down_pos]:
+                         final_cost += 0.1
+
+                # Apply penalty for traversing penalty points (node volumes)
+                if penalty_points and (nx, ny, nz) in penalty_points:
+                    final_cost += 50.0
 
                 valid.append(((nx, ny, nz), final_cost))
+                
         return valid
 
 
-def a_star(start, goal, grid, allowed_points, max_steps=5000, forceful=False):
+def a_star(start, goal, grid, allowed_points, max_steps=50_000, forceful=False, penalty_points=None, debug_goal=False, max_cost=None):
     def h(p1, p2):
-        # Standard Manhattan distance
-        return abs(p1[0]-p2[0]) + abs(p1[1]-p2[1]) * 2 + abs(p1[2]-p2[2])
+        # Euclidean distance is better for 3D with diagonals
+        return math.sqrt((p1[0]-p2[0])**2 + (p1[1]-p2[1])**2 + (p1[2]-p2[2])**2)
         
     open_set = []
     heapq.heappush(open_set, (h(start, goal), 0, start))
@@ -285,13 +345,42 @@ def a_star(start, goal, grid, allowed_points, max_steps=5000, forceful=False):
     came_from = {}
     g_score = {start: 0}
     steps = 0
+    
+    # Track closest point for diagnostics
+    closest_point = start
+    closest_distance = h(start, goal)
+    
+    # Debug: track if goal was ever seen as a neighbor
+    goal_seen_as_neighbor = False
+    goal_added_to_open = False
+    
+    # Store best path found as fallback
+    fallback_path = None
+    fallback_cost = float('inf')
+    
     while open_set:
         _, current_g, current = heapq.heappop(open_set)
         
         steps += 1
+        
+        # Update closest point tracking
+        current_dist = h(current, goal)
+        if current_dist < closest_distance:
+            closest_distance = current_dist
+            closest_point = current
+        
         if steps > max_steps:
-            print(f"A* max steps reached ({max_steps}) from {start} to {goal}")
-            return None
+            # Return fallback path if we found one, otherwise return failure diagnostics
+            if fallback_path is not None:
+                return fallback_path
+            return {
+                'closest': closest_point,
+                'distance': closest_distance,
+                'steps': steps,
+                'reason': 'max_steps',
+                'goal_seen': goal_seen_as_neighbor,
+                'goal_queued': goal_added_to_open
+            }
         
         if current == goal:
             path = []
@@ -302,64 +391,174 @@ def a_star(start, goal, grid, allowed_points, max_steps=5000, forceful=False):
             return path[::-1]
 
         prev_footprint = None
+        prev_direction = None
         if current in came_from:
             previous = came_from[current]
             prev_footprint = grid.get_segment_footprint(previous, current)
+            prev_direction = (current[0]-previous[0], current[1]-previous[1], current[2]-previous[2])
             
-        for neighbor, move_cost in grid.get_neighbors(current, allowed_points, forceful, prev_footprint):
-            if grid.is_blocked(neighbor, allowed_points, forceful):
+        for neighbor, move_cost in grid.get_neighbors(current, allowed_points, forceful, prev_footprint, penalty_points, start, goal):
+            # Debug tracking
+            if neighbor == goal:
+                goal_seen_as_neighbor = True
+            
+            # Calculate turn penalty
+            penalty = 0.0
+            new_direction = (neighbor[0]-current[0], neighbor[1]-current[1], neighbor[2]-current[2])
+            if prev_direction is not None and new_direction != prev_direction:
+                penalty = 0.1
+
+            tentative_g = current_g + move_cost + penalty
+            
+            # Skip if cost exceeds max_cost threshold
+            if max_cost is not None and tentative_g > max_cost:
                 continue
                 
-            tentative_g = current_g + move_cost
-            
             if neighbor not in g_score or tentative_g < g_score[neighbor]:
                 came_from[neighbor] = current
                 g_score[neighbor] = tentative_g
                 f_score = tentative_g + h(neighbor, goal)
                 heapq.heappush(open_set, (f_score, tentative_g, neighbor))
+                if neighbor == goal:
+                    goal_added_to_open = True
+                    # Store path as fallback if it's better than current best
+                    if tentative_g < fallback_cost:
+                        path = [goal]
+                        node = current
+                        while node in came_from:
+                            path.append(node)
+                            node = came_from[node]
+                        path.append(start)
+                        fallback_path = path[::-1]
+                        fallback_cost = tentative_g
                 
-    return None
+    # Return fallback path if we found one, otherwise return failure diagnostics
+    if fallback_path is not None:
+        return fallback_path
+    return {
+        'closest': closest_point,
+        'distance': closest_distance,
+        'steps': steps,
+        'reason': 'exhausted',
+        'goal_seen': goal_seen_as_neighbor,
+        'goal_queued': goal_added_to_open
+    }
 
 
-def find_tunnel(grid, start_point):
-    """Finds the shortest path from start_point to any non-blocked point using only cardinal directions."""
-    if start_point not in grid.blocked_coords:
-        return []
-
+def _analyze_blocking(grid, point, allowed_points=None):
+    """Analyze what's blocking neighbors around a point."""
+    x, y, z = point
+    
+    # Check all cardinal directions
     directions = [
         (1, 0, 0), (-1, 0, 0),
+        (0, 1, 0), (0, -1, 0),
         (0, 0, 1), (0, 0, -1)
     ]
     
-    valid_paths = []
+    node_blocked = 0
+    node_blocked_but_allowed = 0
+    wire_blocked = 0
+    wire_nets = set()
+    out_of_bounds = 0
+    pin_blocked = 0
+    blocking_nodes = set()
+    
+    min_x, min_y, min_z = grid.min_coords
+    max_x, max_y, max_z = grid.max_coords
     
     for dx, dy, dz in directions:
-        path = [start_point]
-        curr_x, curr_y, curr_z = start_point
+        nx, ny, nz = x + dx, y + dy, z + dz
         
-        # Limit tunnel length to avoid infinite loops or extremely long paths
-        max_tunnel_len = 10
-        
-        for _ in range(max_tunnel_len):
-            curr_x += dx
-            curr_y += dy
-            curr_z += dz
-            next_point = (curr_x, curr_y, curr_z)
-            path.append(next_point)
+        # Check bounds
+        if not (min_x <= nx <= max_x and min_y <= ny <= max_y and min_z <= nz <= max_z):
+            out_of_bounds += 1
+            continue
             
-            if not grid.is_blocked(next_point):
-                valid_paths.append(path)
-                break
-                
-    if not valid_paths:
-        return []
+        neighbor = (nx, ny, nz)
+        if neighbor in grid.node_occupancy:
+            blocking_nodes.add(grid.node_occupancy[neighbor])
+            if allowed_points and neighbor in allowed_points:
+                node_blocked_but_allowed += 1
+            else:
+                node_blocked += 1
+        elif neighbor in grid.wire_occupancy:
+            wire_blocked += 1
+            wire_nets.update(grid.wire_occupancy[neighbor])
+        elif neighbor in grid.blocked_coords:
+            # Blocked but not by node or wire - probably a pre-claimed pin
+            pin_blocked += 1
+    
+    return {
+        'node_blocked': node_blocked,
+        'node_blocked_but_allowed': node_blocked_but_allowed,
+        'wire_blocked': wire_blocked,
+        'wire_nets': wire_nets,
+        'out_of_bounds': out_of_bounds,
+        'pin_blocked': pin_blocked,
+        'blocking_nodes': blocking_nodes
+    }
+
+
+def _get_port_base(port_name):
+    if '[' in port_name:
+        return port_name.split('[')[0]
+    return port_name
+
+def _get_pin_pos(node_name, port_name, positions, nodes_data):
+    pos = positions[node_name]
+    pins = nodes_data[node_name]['pin_locations']
+    dims = nodes_data[node_name]['dims']
+    offset = pins.get(port_name, (0,0,0))
+    # Calculate absolute position
+    px = pos[0] - dims[0]/2 + offset[0]
+    py = pos[1] - dims[1]/2 + offset[1]
+    pz = pos[2] - dims[2]/2 + offset[2]
+    return (px, py, pz)
+
+def _is_8b_net(net_name, net_data, nodes_data):
+    # Check driver
+    driver_node, driver_port = net_data['driver']
+    if driver_node and driver_node in nodes_data:
+        driver_pins = nodes_data[driver_node]['pin_locations']
+        base = _get_port_base(driver_port)
+        # Count pins with this base
+        count = sum(1 for p in driver_pins if _get_port_base(p) == base)
+        if count >= 8:
+            return True
+
+    # Check sinks
+    for sink_node, sink_port in net_data['sinks']:
+        if sink_node and sink_node in nodes_data:
+            sink_pins = nodes_data[sink_node]['pin_locations']
+            base = _get_port_base(sink_port)
+            count = sum(1 for p in sink_pins if _get_port_base(p) == base)
+            if count >= 8:
+                return True
+    
+    return False
+
+def _get_net_length(net_data, positions, nodes_data):
+    length = 0
+    driver_node, driver_port = net_data['driver']
+    if not driver_node: return float('inf')
+    
+    try:
+        p1 = _get_pin_pos(driver_node, driver_port, positions, nodes_data)
         
-    # Return the shortest path
-    return min(valid_paths, key=len)
+        for sink_node, sink_port in net_data['sinks']:
+            if sink_node:
+                p2 = _get_pin_pos(sink_node, sink_port, positions, nodes_data)
+                dist = abs(p1[0] - p2[0]) + abs(p1[1] - p2[1]) + abs(p1[2] - p2[2])
+                length += dist
+    except KeyError:
+        return float('inf')
+        
+    return length
 
 
 def route_nets(G: nx.DiGraph, positions: Dict[str, Tuple[float, float, float]], max_time_seconds: float = None) -> Tuple[Dict[str, List[List[Tuple[int, int, int]]]], List[Dict]]:
-    print("Starting routing...")
+    print("Starting routing (Voxel Mode)...")
     
     nodes_data = {}
     for node in G.nodes():
@@ -369,6 +568,40 @@ def route_nets(G: nx.DiGraph, positions: Dict[str, Tuple[float, float, float]], 
         }
         
     grid = RoutingGrid(positions, nodes_data)
+    
+    # Validate pin spacing
+    print("Validating pin spacing...")
+    all_pins = []
+    for node, pos in positions.items():
+        pins = nodes_data[node]['pin_locations']
+        dims = nodes_data[node]['dims']
+        for pin_name, pin_offset in pins.items():
+            # Calculate absolute pin position
+            px = pos[0] - dims[0]/2 + pin_offset[0]
+            py = pos[1] - dims[1]/2 + pin_offset[1]
+            pz = pos[2] - dims[2]/2 + pin_offset[2]
+            all_pins.append(((px, py, pz), f"{node}.{pin_name}"))
+
+    for i in range(len(all_pins)):
+        p1, name1 = all_pins[i]
+        for j in range(i + 1, len(all_pins)):
+            p2, name2 = all_pins[j]
+            dist_sq = (p1[0]-p2[0])**2 + (p1[1]-p2[1])**2 + (p1[2]-p2[2])**2
+            if dist_sq < 4: # Distance < 2 means dist_sq < 4
+                raise ValueError(f"Pin spacing violation: {name1} and {name2} are too close (dist_sq={dist_sq}). Positions: {p1}, {p2}")
+    
+    # Pre-claim all pin locations to prevent other nets from routing through them
+    print("Pre-claiming pin locations...")
+    pin_reservations = {}  # grid_coord -> set of "node.pin" names
+    for (px, py, pz), pin_name in all_pins:
+        gp = (grid._to_grid(px), grid._to_grid(py), grid._to_grid(pz))
+        if gp not in pin_reservations:
+            pin_reservations[gp] = set()
+        pin_reservations[gp].add(pin_name)
+        # Mark as blocked so routing avoids these points
+        grid.blocked_coords.add(gp)
+    
+    print(f"  Reserved {len(pin_reservations)} unique pin grid locations")
     
     nets = {}
     for u, v, data in G.edges(data=True):
@@ -390,90 +623,29 @@ def route_nets(G: nx.DiGraph, positions: Dict[str, Tuple[float, float, float]], 
     failed_connections = 0
     total_connections = 0
     
-    # --- Pass 1: Pre-calculate tunnels and claim endpoints ---
-    print("Pass 1: Running tunneling for all pins...")
+    # Sort nets by priority: 8b first, then shortest length
+    print("Prioritizing nets...")
+    net_priorities = []
+    for net_name, net_data in nets.items():
+        is_8b = _is_8b_net(net_name, net_data, nodes_data)
+        length = _get_net_length(net_data, positions, nodes_data)
+        # Priority: 8b first (True > False), then length (Short > Long)
+        # Sort key: (not is_8b, length)
+        # False < True, so (False, len) comes before (True, len) -> 8b comes first
+        net_priorities.append((net_name, (not is_8b, length)))
     
-    # Store tunnels and points: 
-    # net_name -> { 
-    #   'driver': {'point': (x,y,z), 'tunnel': path}, 
-    #   'sinks': { sink_idx: {'point': (x,y,z), 'tunnel': path} } 
-    # }
-    precalculated_data = {} 
+    net_priorities.sort(key=lambda x: x[1])
+    sorted_nets = [n[0] for n in net_priorities]
     
-    total_nets = len(nets)
-    
-    start_time = time.time()
-
-    for i, (net_name, net_data) in enumerate(nets.items()):
-        driver_node, driver_port = net_data['driver']
-        sinks = net_data['sinks']
-        
-        if not driver_node or not sinks:
-            continue
-
-        precalculated_data[net_name] = {'driver': None, 'sinks': {}}
-            
-        # 1. Driver Tunnel
-        d_pos = positions[driver_node]
-        d_pins = nodes_data[driver_node]['pin_locations']
-        d_pin_offset = d_pins.get(driver_port, (0, 0, 0))
-        d_dims = nodes_data[driver_node]['dims']
-        
-        start_x = int(round(d_pos[0] - d_dims[0]/2 + d_pin_offset[0]))
-        start_y = int(round(d_pos[1] - d_dims[1]/2 + d_pin_offset[1]))
-        start_z = int(round(d_pos[2] - d_dims[2]/2 + d_pin_offset[2]))
-        start_point = (start_x, start_y, start_z)
-        
-        driver_tunnel = find_tunnel(grid, start_point)
-        precalculated_data[net_name]['driver'] = {'point': start_point, 'tunnel': driver_tunnel}
-        
-        if driver_tunnel:
-            # Claim the tunnel immediately
-            for p in driver_tunnel:
-                grid.blocked_coords.add(p)
-        elif start_point in grid.blocked_coords:
-             pass
-        else:
-            grid.blocked_coords.add(start_point)
-
-        # 2. Sink Tunnels
-        for idx, (sink_node, sink_port) in enumerate(sinks):
-            s_pos = positions[sink_node]
-            s_pins = nodes_data[sink_node]['pin_locations']
-            s_pin_offset = s_pins.get(sink_port, (0, 0, 0))
-            s_dims = nodes_data[sink_node]['dims']
-            
-            sx = int(round(s_pos[0] - s_dims[0]/2 + s_pin_offset[0]))
-            sy = int(round(s_pos[1] - s_dims[1]/2 + s_pin_offset[1]))
-            sz = int(round(s_pos[2] - s_dims[2]/2 + s_pin_offset[2]))
-            
-            p = (sx, sy, sz)
-            
-            sink_tunnel = find_tunnel(grid, p)
-            precalculated_data[net_name]['sinks'][idx] = {'point': p, 'tunnel': sink_tunnel}
-            
-            if sink_tunnel:
-                for tp in sink_tunnel:
-                    grid.blocked_coords.add(tp)
-            elif p in grid.blocked_coords:
-                pass
-            else:
-                grid.blocked_coords.add(p)
-
-    # --- Pass 2: Main Routing with Rip-up and Reroute ---
-    print("Pass 2: connecting nets with Rip-up and Reroute...")
-    
-    # Queue of nets to route: (priority, net_name)
-    # We use a priority queue to prioritize nets that have been ripped up less often?
-    # Or just a simple deque. Let's use a deque for simplicity first.
-    routing_queue = deque(nets.keys())
-    
-    # Track how many times each net has been ripped up
+    # Queue of nets to route
+    routing_queue = deque(sorted_nets)
     rip_up_counts = {net: 0 for net in nets}
     MAX_RIP_UPS = 10
     
+    start_time = time.time()
+    
     while routing_queue:
-        print(f"{len(routing_queue)}/{total_nets} nets remaining...\r", end="")
+        print(f"{len(routing_queue)}/{len(nets)} nets left to route.\r", end="")
         if max_time_seconds and (time.time() - start_time > max_time_seconds):
             print(f"Stopping routing after {max_time_seconds} seconds.")
             break
@@ -489,39 +661,56 @@ def route_nets(G: nx.DiGraph, positions: Dict[str, Tuple[float, float, float]], 
             
         total_connections += len(sinks)
         
-        # Retrieve pre-calculated data
-        net_precalc = precalculated_data.get(net_name, {})
-        driver_info = net_precalc.get('driver')
-        if not driver_info:
-            continue
-            
-        start_point = driver_info['point']
-        start_tunnel = driver_info['tunnel']
+        # Calculate Driver Grid Point
+        d_pos = positions[driver_node]
+        d_pins = nodes_data[driver_node]['pin_locations']
+        d_pin_offset = d_pins.get(driver_port, (0, 0, 0))
+        d_dims = nodes_data[driver_node]['dims']
         
-        # Initialize tree with start point and tunnel
+        dx = d_pos[0] - d_dims[0]/2 + d_pin_offset[0]
+        dy = d_pos[1] - d_dims[1]/2 + d_pin_offset[1]
+        dz = d_pos[2] - d_dims[2]/2 + d_pin_offset[2]
+        
+        start_point = (grid._to_grid(dx), grid._to_grid(dy), grid._to_grid(dz))
+        
+        # Initialize tree
         tree_points = {start_point}
-        for p in start_tunnel:
-            tree_points.add(p)
+        
+        # Allow breakout from driver
+        # We don't add to tree_points, but we will add to allowed_points during A*
+        pass
 
         remaining_sinks = []
-        sink_tunnels = {} # Local map for this net: point -> tunnel
-        
+        sink_breakouts = {} # Map sink point to set of allowed breakout points
+
         for idx, (sink_node, sink_port) in enumerate(sinks):
-            sink_info = net_precalc.get('sinks', {}).get(idx)
-            if not sink_info:
-                continue
-                
-            p = sink_info['point']
-            tun = sink_info['tunnel']
+            s_pos = positions[sink_node]
+            s_pins = nodes_data[sink_node]['pin_locations']
+            s_pin_offset = s_pins.get(sink_port, (0, 0, 0))
+            s_dims = nodes_data[sink_node]['dims']
             
-            remaining_sinks.append(p)
-            sink_tunnels[p] = tun
+            sx = s_pos[0] - s_dims[0]/2 + s_pin_offset[0]
+            sy = s_pos[1] - s_dims[1]/2 + s_pin_offset[1]
+            sz = s_pos[2] - s_dims[2]/2 + s_pin_offset[2]
             
-        net_paths = []
-        success = True
-        
-        # Temporary storage for paths in this iteration
+            sp = (grid._to_grid(sx), grid._to_grid(sy), grid._to_grid(sz))
+            remaining_sinks.append(sp)
+            
+            # Ensure sink point is claimed
+            if sp not in grid.blocked_coords:
+                grid.blocked_coords.add(sp)
+                if sp not in grid.wire_occupancy:
+                    grid.wire_occupancy[sp] = set()
+                grid.wire_occupancy[sp].add(net_name)
+            
+            # Allow breakout from sink
+            sink_allowed = set()
+            if sink_node:
+                sink_allowed.update(grid.get_node_coords(sink_node))
+            sink_breakouts[sp] = sink_allowed
+
         current_net_paths = []
+        success = True
         
         while remaining_sinks:
             best_dist = float('inf')
@@ -529,7 +718,7 @@ def route_nets(G: nx.DiGraph, positions: Dict[str, Tuple[float, float, float]], 
             
             for sp in remaining_sinks:
                 for tp in tree_points:
-                     dist = abs(tp[0]-sp[0]) + abs(tp[1]-sp[1]) + abs(tp[2]-sp[2])
+                     dist = (tp[0]-sp[0])**2 + (tp[1]-sp[1])**2 + (tp[2]-sp[2])**2
                      if dist < best_dist:
                          best_dist = dist
                          best_pair = (tp, sp)
@@ -539,115 +728,161 @@ def route_nets(G: nx.DiGraph, positions: Dict[str, Tuple[float, float, float]], 
                 break
                 
             start, end = best_pair
-            
             allowed_points = set(tree_points)
+            allowed_points.add(end)
+            penalty_points = set()
             
-            if end in sink_tunnels:
-                for p in sink_tunnels[end]:
-                    allowed_points.add(p)
-            allowed_points.add(end) 
-            
-            # Try normal routing first
-            path = a_star(start, end, grid, allowed_points, forceful=False)
-            
-            if not path:
-                # Normal routing failed. Try forceful routing if we haven't exceeded rip-up limit.
-                if rip_up_counts[net_name] < MAX_RIP_UPS:
-                    # print(f"  [Force] Net {net_name} needs to bulldoze...")
-                    # Increase max_steps for forceful search to ensure we find a path even if it's long
-                    path = a_star(start, end, grid, allowed_points, max_steps=10000, forceful=True)
-                    
-                    if path:
-                        # Identify collisions
-                        collided_nets = set()
-                        for p in path:
-                            # Check p and p+1 (wire height)
-                            if p in grid.wire_occupancy:
-                                collided_nets.add(grid.wire_occupancy[p])
-                            p_up = (p[0], p[1]+1, p[2])
-                            if p_up in grid.wire_occupancy:
-                                collided_nets.add(grid.wire_occupancy[p_up])
-                        
-                        # Filter out self (shouldn't happen if logic is correct, but safe to check)
-                        if net_name in collided_nets:
-                            collided_nets.remove(net_name)
-                            
-                        # Rip up collided nets
-                        if collided_nets:
-                            print(f"  [Rip-up] Net {net_name} ripping up: {collided_nets}")
-                            for victim in collided_nets:
-                                if victim in routed_paths:
-                                    # Remove victim's paths from grid
-                                    for vp in routed_paths[victim]:
-                                        grid.remove_path(vp)
-                                    # Remove from routed_paths
-                                    del routed_paths[victim]
-                                    # Add back to queue
-                                    routing_queue.append(victim)
-                                    rip_up_counts[victim] += 1
+            if driver_node:
+                driver_coords = grid.get_node_coords(driver_node)
+                allowed_points.update(driver_coords)
+                penalty_points.update(driver_coords)
                 
+            if end in sink_breakouts:
+                sink_coords = sink_breakouts[end]
+                allowed_points.update(sink_coords)
+                penalty_points.update(sink_coords)
+            
+            # Remove start and end from penalty points so we don't penalize connecting to the pin itself
+            if start in penalty_points:
+                penalty_points.remove(start)
+            if end in penalty_points:
+                penalty_points.remove(end)
+            
+            result = a_star(start, end, grid, allowed_points, forceful=False, penalty_points=penalty_points)
+            
+            # Track failure diagnostics for reporting
+            failure_diag = None
+            if isinstance(result, dict):
+                failure_diag = result
+                path = None
+            else:
+                path = result
+            
+            if path is None and rip_up_counts[net_name] < MAX_RIP_UPS:
+                 result = a_star(start, end, grid, allowed_points, max_steps=100_000, forceful=True, penalty_points=penalty_points, max_cost=800)
+                 if isinstance(result, dict):
+                     failure_diag = result
+                     path = None
+                 else:
+                     path = result
+                 if path:
+                    # Handle rip-up
+                    collided_nets = set()
+                    for i in range(len(path)):
+                        p = path[i]
+                        if p in grid.wire_occupancy:
+                            for victim in grid.wire_occupancy[p]:
+                                if victim != net_name:
+                                    collided_nets.add(victim)
+                        # Check vertical claims too?
+                        if i < len(path) - 1:
+                            footprint = grid.get_segment_footprint(p, path[i+1])
+                            for fp in footprint:
+                                if fp in grid.wire_occupancy:
+                                    for victim in grid.wire_occupancy[fp]:
+                                        if victim != net_name:
+                                            collided_nets.add(victim)
+
+                    if collided_nets:
+                        print(f"  [Rip-up] Net {net_name} ripping up: {collided_nets}")
+                        for victim in collided_nets:
+                            if victim in routed_paths:
+                                for vp in routed_paths[victim]:
+                                    grid.remove_path(vp, victim)
+                                del routed_paths[victim]
+                                routing_queue.append(victim)
+                                rip_up_counts[victim] += 1
+
             if path:
                 current_net_paths.append(path)
-                
                 grid.add_path(path, net_name)
                 for p in path:
                     tree_points.add(p)
-                
-                if end in sink_tunnels:
-                    for p in sink_tunnels[end]:
-                        tree_points.add(p)
-                        
                 remaining_sinks.remove(end)
             else:
-                print(f"  [Fail] No path found for net {net_name} from {start} to {end}")
+                # Print detailed failure diagnostics
+                print(f"\n  [Fail] Net '{net_name}' from {start} to {end}")
+                if failure_diag:
+                    closest = failure_diag['closest']
+                    dist = failure_diag['distance']
+                    steps = failure_diag['steps']
+                    reason = failure_diag['reason']
+                    goal_seen = failure_diag.get('goal_seen', False)
+                    goal_queued = failure_diag.get('goal_queued', False)
+                    print(f"         Closest point: {closest}, distance remaining: {dist:.2f}")
+                    print(f"         Reason: {reason} after {steps} steps")
+                    print(f"         Goal seen as neighbor: {goal_seen}, Goal added to queue: {goal_queued}")
+                    
+                    # Analyze blocking near closest point
+                    blocking = _analyze_blocking(grid, closest, allowed_points)
+                    node_b = blocking['node_blocked']
+                    node_allowed = blocking['node_blocked_but_allowed']
+                    wire_b = blocking['wire_blocked']
+                    oob = blocking['out_of_bounds']
+                    pin_b = blocking['pin_blocked']
+                    wire_nets = blocking['wire_nets']
+                    blocking_nodes = blocking['blocking_nodes']
+                    
+                    parts = []
+                    if node_b > 0:
+                        nodes_str = ", ".join(list(blocking_nodes)[:3])
+                        if len(blocking_nodes) > 3:
+                            nodes_str += f" +{len(blocking_nodes)-3} more"
+                        parts.append(f"{node_b} by other nodes ({nodes_str})")
+                    if node_allowed > 0:
+                        parts.append(f"{node_allowed} by own node (allowed)")
+                    if wire_b > 0:
+                        nets_str = ", ".join(list(wire_nets)[:3])
+                        if len(wire_nets) > 3:
+                            nets_str += f" +{len(wire_nets)-3} more"
+                        parts.append(f"{wire_b} by wires ({nets_str})")
+                    if pin_b > 0:
+                        parts.append(f"{pin_b} by other pins")
+                    if oob > 0:
+                        parts.append(f"{oob} out of bounds")
+                    
+                    if parts:
+                        print(f"         Blocking: {', '.join(parts)}")
+                    
+                    # Extra diagnostics: why can't we reach the goal from closest?
+                    if dist < 2.0:
+                        print(f"         --- Goal reachability analysis ---")
+                        print(f"         Goal in blocked_coords: {end in grid.blocked_coords}")
+                        print(f"         Goal in node_occupancy: {end in grid.node_occupancy}")
+                        print(f"         Goal in wire_occupancy: {grid.wire_occupancy.get(end, set())}")
+                        print(f"         Goal in allowed_points: {end in allowed_points}")
+                        print(f"         Tree points near goal: {[tp for tp in tree_points if abs(tp[0]-end[0]) + abs(tp[1]-end[1]) + abs(tp[2]-end[2]) <= 2]}")
+                        
+                        # Check what moves from closest would reach goal
+                        dx, dy, dz = end[0] - closest[0], end[1] - closest[1], end[2] - closest[2]
+                        print(f"         Move needed: ({dx}, {dy}, {dz})")
+                        
+                        # Check if that move is in the move set
+                        cardinals = [(1,0,0), (-1,0,0), (0,0,1), (0,0,-1)]
+                        slopes = [(2,1,0), (2,-1,0), (-2,1,0), (-2,-1,0), (0,1,2), (0,-1,2), (0,1,-2), (0,-1,-2)]
+                        all_moves = cardinals + slopes
+                        if (dx, dy, dz) in all_moves:
+                            print(f"         Move IS in move set")
+                        else:
+                            print(f"         Move NOT in move set! Available: cardinals + slopes")
+                
                 failed_connections += 1
-                failed_connections_list.append({
-                    'net': net_name,
-                    'start': start,
-                    'end': end
-                })
+                failed_connections_list.append({'net': net_name, 'start': start, 'end': end})
                 remaining_sinks.remove(end)
+                print(f"{len(routing_queue)}/{len(nets)} nets left to route.\r", end="")
                 success = False
         
-        # Add the used portion of the driver tunnel to the routed paths
-        if start_tunnel:
-            driver_tunnel_indices = {p: i for i, p in enumerate(start_tunnel)}
-            max_driver_idx = -1
-            
-            # Check all points in the routed paths to see how far up the tunnel we went
-            for path in current_net_paths:
-                if not path: continue
-                # Check all points, not just endpoints, to be safe
-                for p in path:
-                    if p in driver_tunnel_indices:
-                        idx = driver_tunnel_indices[p]
-                        max_driver_idx = max(max_driver_idx, idx)
-            
-            # Also check the start point itself (index 0 of tunnel usually)
-            # Actually, the tunnel starts at index 0 near the driver.
-            # If we used any point in the tunnel, we need the segment from 0 to that point.
-            
-            if max_driver_idx >= 0:
-                used_tunnel = start_tunnel[:max_driver_idx+1]
-                # Only add if it has length (more than 1 point or just 1 point? A path usually needs 2 points to be a line)
-                # But a single point path is valid for connectivity if it overlaps.
-                # Let's add it if it's not empty.
-                if used_tunnel:
-                    # We need to make sure we don't duplicate paths if they are already covered?
-                    # But the tunnel is a specific pre-calculated path.
-                    # Let's add it.
-                    current_net_paths.append(used_tunnel)
-                    grid.add_path(used_tunnel, net_name)
-                
-        if success:
-            routed_paths[net_name] = current_net_paths
-        else:
-            # If we failed partially, we should probably clean up what we placed for this net?
-            # Or just leave it as a partial route.
-            # Let's leave it for now, or maybe rip it up so it doesn't block others?
-            # If it failed, it's likely stuck. Leaving it might be better than nothing.
-            routed_paths[net_name] = current_net_paths
+        # Convert paths back to world coordinates (x2) for output
+        # Actually, let's return the grid coordinates and let redstone.py handle the scaling/filling
+        # But wait, visualization might expect world coords?
+        # The plan said: "Return the list of 'Key Points' (Grid Coords * 2)"
         
+        world_paths = []
+        for path in current_net_paths:
+            world_path = [(p[0]*2, p[1]*2, p[2]*2) for p in path]
+            world_paths.append(world_path)
+            
+        routed_paths[net_name] = world_paths
+
     print(f"\nRouting complete. Failed connections: {failed_connections}/{total_connections}")
-    
     return routed_paths, failed_connections_list

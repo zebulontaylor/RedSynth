@@ -39,19 +39,30 @@ def parse_netlist(json_file_path: str, cells_json_path: str = "cells/cells.json"
                 direction = port_data.get('direction', 'input')
                 bits = port_data.get('bits', [])
                 
+                num_bits = len(bits)
+                height = max(2, num_bits * 2)
+                
                 node = Node(name=port_name, cell_type='InputPort' if direction == 'input' else 'OutputPort')
-                node.set_bounding_box(0, 0, 0, 2, 10, 2)
-                node.set_pin_location('in', 0, 5, 1)
-                node.set_pin_location('out', 2, 5, 1)
+                node.set_bounding_box(0, 0, 0, 2, height, 2)
                 
                 if direction == 'input':
-                    for bit in bits:
+                    for i, bit in enumerate(bits):
+                        # Pin locations: x=2 (right side), y=1, 3, 5... (centered in block), z=1
+                        y_pos = 1 + i * 2
+                        pin_name = f"out[{i}]" if num_bits > 1 else "out"
+                        node.set_pin_location(pin_name, 2, y_pos, 1)
+                        
                         if isinstance(bit, int) and bit >= 0:
-                            node.add_outgoing_connection('out', f"net_{bit}")
+                            node.add_outgoing_connection(pin_name, f"net_{bit}")
                 else:
-                    for bit in bits:
+                    for i, bit in enumerate(bits):
+                        # Pin locations: x=0 (left side), y=1, 3, 5... (centered in block), z=1
+                        y_pos = 1 + i * 2
+                        pin_name = f"in[{i}]" if num_bits > 1 else "in"
+                        node.set_pin_location(pin_name, 0, y_pos, 1)
+                        
                         if isinstance(bit, int) and bit >= 0:
-                            node.add_incoming_connection('in', f"net_{bit}")
+                            node.add_incoming_connection(pin_name, f"net_{bit}")
                 
                 nodes.append(node)
 

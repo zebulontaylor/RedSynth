@@ -16,6 +16,7 @@ opt
 
 # Map any new muxes or logic
 techmap -map redstone_techmap.v
+techmap
 opt
 
 # Use ABC with generic gates to avoid library issues
