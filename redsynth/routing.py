@@ -25,6 +25,15 @@ SLOPE_FOOTPRINT_REL = {
     for direction in SLOPE_DIRECTIONS
 }
 
+# Pre-compute all neighbor deltas with metadata
+ALL_NEIGHBOR_DELTAS = []
+for dx, dy, dz in CARDINAL_DIRECTIONS:
+    ALL_NEIGHBOR_DELTAS.append((dx, dy, dz, 1.0, False, None, None))  # (dx, dy, dz, cost, is_slope, mid_start_rel, mid_end_rel)
+for direction in SLOPE_DIRECTIONS:
+    dx, dy, dz = direction
+    mid_start_rel, mid_end_rel = SLOPE_MIDPOINTS[direction]
+    ALL_NEIGHBOR_DELTAS.append((dx, dy, dz, 2.5, True, mid_start_rel, mid_end_rel))
+
 class RoutingGrid:
     def __init__(self, positions: Dict[str, Tuple[float, float, float]], nodes_data: Dict[str, dict]):
         self.positions = positions
@@ -200,110 +209,74 @@ class RoutingGrid:
         wire_directions = self.wire_directions
         wire_occupancy = self.wire_occupancy
         node_occupancy = self.node_occupancy
+
+        blocked_contains = blocked_coords.__contains__
+        node_contains = node_occupancy.__contains__
+        get_dirs = wire_directions.get
+        get_wire_occupancy = wire_occupancy.get
+
         allowed_lookup = allowed_points.__contains__ if allowed_points else None
+        penalty_lookup = penalty_points.__contains__ if penalty_points else None
 
         is_cardinal = self._is_cardinal
         is_perpendicular = self._is_perpendicular
         abs_fn = abs
-        valid = []
 
-        current_dirs = wire_directions.get((x, y, z))
+        up_dirs = get_dirs((x, y + 1, z))
+        down_dirs = get_dirs((x, y - 1, z))
+        current_dirs = get_dirs(point) or ()
 
-        # Determine if we're sitting at an intersection to prevent downward slopes
         at_intersection = False
-        if prev_direction is not None and is_cardinal(prev_direction) and prev_direction[1] == 0 and current_dirs:
+        if prev_direction and is_cardinal(prev_direction) and prev_direction[1] == 0 and current_dirs:
             for d in current_dirs:
-                if is_cardinal(d) and d[1] == 0 and is_perpendicular(d, prev_direction):
+                if d[1] == 0 and is_cardinal(d) and is_perpendicular(d, prev_direction):
                     at_intersection = True
                     break
 
         def point_blocked(pt):
-            if pt not in blocked_coords:
+            if not blocked_contains(pt):
                 return False
             if allowed_lookup and allowed_lookup(pt):
                 return False
-            if forceful and pt not in node_occupancy:
+            if forceful and not node_contains(pt):
                 return False
             return True
 
-        def bulldoze_penalty(points):
-            bulldozed_points = []
-            bulldozed_nets = set()
-            for pt in points:
-                nets_here = wire_occupancy.get(pt)
-                if nets_here:
-                    bulldozed_nets.update(nets_here)
-                    bulldozed_points.append(pt)
-            if not bulldozed_nets:
+        def bulldoze_penalty(points, nets):
+            if not nets:
                 return 0.0
-            penalty = 0.0
-            for net in bulldozed_nets:
-                is_sloped_contact = False
-                near_endpoint = False
-                for bp in bulldozed_points:
-                    dirs = wire_directions.get(bp)
-                    if dirs:
-                        for d in dirs:
-                            if d[1] != 0:
-                                is_sloped_contact = True
-                                break
-                    if not near_endpoint and start_point:
-                        if abs_fn(bp[0]-start_point[0]) + abs_fn(bp[1]-start_point[1]) + abs_fn(bp[2]-start_point[2]) <= 2:
-                            near_endpoint = True
-                    if not near_endpoint and goal_point:
-                        if abs_fn(bp[0]-goal_point[0]) + abs_fn(bp[1]-goal_point[1]) + abs_fn(bp[2]-goal_point[2]) <= 2:
-                            near_endpoint = True
-                    if is_sloped_contact and near_endpoint:
-                        break
-                base_penalty = 400.0
-                if is_sloped_contact:
-                    base_penalty *= 0.5
-                if near_endpoint:
-                    base_penalty *= 0.1
-                penalty += base_penalty
-            return penalty
+            has_slope_contact = False
+            near_endpoint = False
+            for bp in points:
+                dirs = get_dirs(bp)
+                if dirs and not has_slope_contact:
+                    for d in dirs:
+                        if d[1] != 0:
+                            has_slope_contact = True
+                            break
+                if not near_endpoint and start_point:
+                    if abs_fn(bp[0] - start_point[0]) + abs_fn(bp[1] - start_point[1]) + abs_fn(bp[2] - start_point[2]) <= 2:
+                        near_endpoint = True
+                if not near_endpoint and goal_point:
+                    if abs_fn(bp[0] - goal_point[0]) + abs_fn(bp[1] - goal_point[1]) + abs_fn(bp[2] - goal_point[2]) <= 2:
+                        near_endpoint = True
+                if has_slope_contact and near_endpoint:
+                    break
+            base = 400.0
+            if has_slope_contact:
+                base *= 0.5
+            if near_endpoint:
+                base *= 0.1
+            return base * len(nets)
 
-        # Cardinals first
-        for dx, dy, dz in CARDINAL_DIRECTIONS:
+        valid = []
+        append_neighbor = valid.append
+
+        fast_path = not forceful and penalty_lookup is None
+
+        for dx, dy, dz, base_cost, is_slope, mid_start_rel, mid_end_rel in ALL_NEIGHBOR_DELTAS:
             nx, ny, nz = x + dx, y + dy, z + dz
-            if not (min_x <= nx <= max_x and min_y <= ny <= max_y and min_z <= nz <= max_z):
-                continue
 
-            target = (nx, ny, nz)
-            move_vec = (dx, dy, dz)
-            blocked_target = point_blocked(target)
-            extra_cost = 0.0
-
-            if blocked_target:
-                if not forceful:
-                    if target in node_occupancy:
-                        continue
-                    dest_dirs = wire_directions.get(target)
-                    if not (dest_dirs and all((is_cardinal(d) or d[1] > 0) and is_perpendicular(d, move_vec) for d in dest_dirs)):
-                        if not (current_dirs and all(is_cardinal(d) and is_perpendicular(d, move_vec) for d in current_dirs)):
-                            continue
-                else:
-                    extra_cost = bulldoze_penalty((target,))
-
-            final_cost = 1.0 + extra_cost
-
-            up_dirs = wire_directions.get((x, y + 1, z))
-            if up_dirs and move_vec not in up_dirs:
-                final_cost += 0.1
-
-            down_dirs = wire_directions.get((x, y - 1, z))
-            if down_dirs and move_vec not in down_dirs:
-                final_cost += 0.1
-
-            if penalty_points and target in penalty_points:
-                final_cost += 800.0
-
-            valid.append((target, final_cost))
-
-        # Slopes
-        for direction in SLOPE_DIRECTIONS:
-            dx, dy, dz = direction
-            nx, ny, nz = x + dx, y + dy, z + dz
             if not (min_x <= nx <= max_x and min_y <= ny <= max_y and min_z <= nz <= max_z):
                 continue
 
@@ -311,46 +284,79 @@ class RoutingGrid:
                 continue
 
             target = (nx, ny, nz)
-            if point_blocked(target) and not forceful:
+            move_vec = (dx, dy, dz)
+
+            blocked_target = point_blocked(target)
+            if blocked_target:
+                if node_contains(target):
+                    continue
+                if fast_path or not forceful:
+                    dest_dirs = get_dirs(target)
+                    if not (dest_dirs and all((is_cardinal(d) or d[1] > 0) and is_perpendicular(d, move_vec) for d in dest_dirs)):
+                        if not (current_dirs and all(is_cardinal(d) and is_perpendicular(d, move_vec) for d in current_dirs)):
+                            continue
+
+            if is_slope:
+                mid_start = (x + mid_start_rel[0], y + mid_start_rel[1], z + mid_start_rel[2])
+                if point_blocked(mid_start):
+                    if not forceful:
+                        mid_dirs_start = get_dirs(mid_start)
+                        if not (mid_dirs_start and move_vec in mid_dirs_start):
+                            continue
+                    else:
+                        pass  # allowed to bulldoze
+
+                mid_end = (x + mid_end_rel[0], y + mid_end_rel[1], z + mid_end_rel[2])
+                if point_blocked(mid_end):
+                    if not forceful:
+                        mid_dirs_end = get_dirs(mid_end)
+                        if not (mid_dirs_end and move_vec in mid_dirs_end):
+                            continue
+                    else:
+                        pass
+
+            cost = base_cost
+
+            if fast_path:
+                if up_dirs and move_vec not in up_dirs:
+                    cost += 0.1
+                if down_dirs and move_vec not in down_dirs:
+                    cost += 0.1
+                append_neighbor((target, cost))
                 continue
 
-            mid_start_rel, mid_end_rel = SLOPE_MIDPOINTS[direction]
-            mid_start = (x + mid_start_rel[0], y + mid_start_rel[1], z + mid_start_rel[2])
-            mid_end = (x + mid_end_rel[0], y + mid_end_rel[1], z + mid_end_rel[2])
-
-            if point_blocked(mid_start):
-                if not forceful:
-                    mid_dirs_start = wire_directions.get(mid_start)
-                    if not (mid_dirs_start and direction in mid_dirs_start):
-                        continue
-
-            if point_blocked(mid_end):
-                if not forceful:
-                    mid_dirs_end = wire_directions.get(mid_end)
-                    if not (mid_dirs_end and direction in mid_dirs_end):
-                        continue
-
-            footprint_points = None
-            extra_cost = 0.0
             if forceful:
-                footprint_points = tuple((x + rel[0], y + rel[1], z + rel[2]) for rel in SLOPE_FOOTPRINT_REL[direction])
-                extra_cost = bulldoze_penalty(footprint_points)
+                bulldozed_points = []
+                bulldozed_nets = set()
 
-            final_cost = 2.5 + extra_cost
+                nets_at_target = get_wire_occupancy(target)
+                if nets_at_target:
+                    bulldozed_nets.update(nets_at_target)
+                    bulldozed_points.append(target)
 
-            if penalty_points and target in penalty_points:
-                final_cost += 800.0
+                if is_slope:
+                    for rel in SLOPE_FOOTPRINT_REL[move_vec]:
+                        fp = (x + rel[0], y + rel[1], z + rel[2])
+                        nets_here = get_wire_occupancy(fp)
+                        if nets_here:
+                            if fp not in bulldozed_points:
+                                bulldozed_points.append(fp)
+                            bulldozed_nets.update(nets_here)
 
-            move_vec = direction
-            up_dirs = wire_directions.get((x, y + 1, z))
-            if up_dirs and move_vec not in up_dirs:
-                final_cost += 0.1
+                if bulldozed_points:
+                    cost += bulldoze_penalty(bulldozed_points, bulldozed_nets)
 
-            down_dirs = wire_directions.get((x, y - 1, z))
-            if down_dirs and move_vec not in down_dirs:
-                final_cost += 0.1
+            up_dirs_local = up_dirs if up_dirs is not None else get_dirs((x, y + 1, z))
+            down_dirs_local = down_dirs if down_dirs is not None else get_dirs((x, y - 1, z))
+            if up_dirs_local and move_vec not in up_dirs_local:
+                cost += 0.1
+            if down_dirs_local and move_vec not in down_dirs_local:
+                cost += 0.1
 
-            valid.append((target, final_cost))
+            if penalty_lookup and penalty_lookup(target):
+                cost += 800.0
+
+            append_neighbor((target, cost))
 
         return valid
 
