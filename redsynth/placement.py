@@ -262,7 +262,7 @@ def legalize_placement(G: nx.DiGraph, raw_pos: Dict[str, Tuple[float, float, flo
                        Default: [24, 12]
     """
     if padding_phases is None:
-        padding_phases = [24, 12]
+        padding_phases = [24, 16]
     
     print(f"Legalizing placement with {len(padding_phases)} phases (padding: {padding_phases})...")
     

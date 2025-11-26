@@ -142,7 +142,7 @@ class RoutingGrid:
         # Apply Gaussian blur to spread density influence to neighboring chunks
         # This creates smoother routing preferences
         blurred_density = {}
-        blur_radius = 2  # How many chunks to spread influence
+        blur_radius = 3  # How many chunks to spread influence
         
         for chunk, volume in chunk_volume.items():
             base_density = volume / max_volume
@@ -178,7 +178,7 @@ class RoutingGrid:
                  point[1] // self.chunk_size, 
                  point[2] // self.chunk_size)
         density = self.density_map.get(chunk, 0.0)
-        return 0.1 * density
+        return 0.2 * density
 
     def _is_cardinal(self, vec):
         return (vec[0] != 0) + (vec[1] != 0) + (vec[2] != 0) == 1
@@ -355,7 +355,7 @@ class RoutingGrid:
             if has_slope_contact:
                 base *= 0.5
             if near_endpoint:
-                base *= 0.2
+                base *= 0.1
             return base * len(nets)
 
         valid = []
@@ -369,7 +369,7 @@ class RoutingGrid:
             if not (min_x <= nx <= max_x and min_y <= ny <= max_y and min_z <= nz <= max_z):
                 continue
 
-            if dy < 0 and at_intersection:
+            if dy != 0 and at_intersection:
                 continue
 
             target = (nx, ny, nz)
@@ -408,7 +408,7 @@ class RoutingGrid:
             
             # Density-based center avoidance penalty
             density_penalty = self.get_density_penalty(target)
-            cost += density_penalty
+            cost += density_penalty * (2 if dy != 0 else 0.5)
 
             if fast_path:
                 if up_dirs and move_vec not in up_dirs:
