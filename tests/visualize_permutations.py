@@ -554,137 +554,163 @@ def create_test_cases() -> Dict[str, List[List[Tuple[int, int, int]]]]:
     routed_paths["decay_serpentine_32_blocks"] = [path_multi]
 
     # ========================================
-    # Section 17: WEIRD SELF-INTERSECTIONS
-    # Tests where a single net crosses or nearly touches itself
+    # Section 17: WEIRD PATTERNS & SLOPE INTERSECTIONS
+    # Grid-based layout for extensibility
     # ========================================
     base_z = section_spacing * 16
     
-    # ---- Figure-8 Pattern ----
-    # Wire crosses itself in the middle forming a figure-8
-    start_fig8 = (base_x, base_y, base_z)
-    path_fig8 = generate_path(start_fig8, ["+X", "+X", "+Z", "+Z", "-X", "-X", "-X", "-X",
-                                            "-Z", "-Z", "+X", "+X"])
-    routed_paths["weird_figure_8"] = [path_fig8]
+    # Grid layout settings
+    cell_width = 30   # X spacing between cells
+    cell_depth = 28   # Z spacing between cells
+    cols = 5          # Number of columns in grid
     
-    # ---- Loop Back Crossing ----
-    # Wire goes forward, turns, and crosses back over itself
-    start_loop = (base_x + 40, base_y, base_z + 4)
-    path_loop = generate_path(start_loop, ["+X", "+X", "+X", "+Z", "+Z", "-X", "-X", "-X", 
-                                            "-X", "-X", "-Z", "-Z", "+X"])
-    routed_paths["weird_loop_back_cross"] = [path_loop]
+    def grid_pos(idx: int, y_offset: int = 0) -> Tuple[int, int, int]:
+        """Get (x, y, z) position for grid cell index."""
+        col = idx % cols
+        row = idx // cols
+        return (base_x + col * cell_width, base_y + y_offset, base_z + row * cell_depth)
     
-    # ---- Spiral Inward ----
-    # Wire spirals inward and crosses previous segments
-    start_spiral_in = (base_x + 80, base_y, base_z)
-    path_spiral_in = generate_path(start_spiral_in, ["+X", "+X", "+X", "+X", "+Z", "+Z", "+Z", "+Z",
-                                                      "-X", "-X", "-X", "-Z", "-Z", "+X"])
-    routed_paths["weird_spiral_inward"] = [path_spiral_in]
+    # ========================================
+    # Single-wire self-intersection tests
+    # ========================================
+    single_wire_tests = [
+        # (name, moves)
+        ("weird_figure_8", 
+         ["+X", "+X", "+Z", "+Z", "-X", "-X", "-X", "-X", "-Z", "-Z", "+X", "+X"]),
+        
+        ("weird_spiral_inward",
+         ["+X", "+X", "+X", "+X", "+Z", "+Z", "+Z", "+Z", "-X", "-X", "-X", "-Z", "-Z", "+X"]),
+        
+        ("weird_cross_diff_y",
+         ["+X", "+X", "+X+Y", "+X+Y", "+Z", "+Z", "-X-Y", "-X-Y", "-X", "-X", "-Z", "-Z"]),
+        
+        ("weird_helix_self_cross",
+         ["+X+Y", "+Z", "+Z", "-X+Y", "-Z", "-Z", "+X+Y", "+Z", "+Z", "-X-Y", "-Z"]),
+        
+        ("weird_box_near_closed",
+         ["+X", "+X", "+X", "+X", "+Z", "+Z", "+Z", "+Z", "-X", "-X", "-X", "-X", "-Z", "-Z", "-Z"]),
+        
+        ("weird_multi_self_cross",
+         ["+X", "+X", "+Z", "+Z", "-X", "-X", "+Z", "+Z", "+X", "+X", "-Z", "-Z", "-X", "-X", "-Z", "-Z", "+X"]),
+        
+        ("weird_stacked_loop",
+         ["+X+Y", "+X+Y", "+Z", "+Z", "-X-Y", "-X-Y", "-Z", "-Z", "+X", "+X"]),
+        
+        ("weird_overlap_revisit",
+         ["+X", "+X", "+X", "-X", "-X", "+X", "+X", "+X", "+X"]),
+        
+        ("weird_tight_zigzag",
+         ["+X", "+Z", "+X", "-Z", "+X", "+Z", "+X", "-Z", "+X", "+Z"]),
+        
+        ("weird_knot_pattern",
+         ["+X+Y", "+X+Y", "+Z", "-X-Y", "-X-Y", "-Z", "-Z", "+X+Y", "+X+Y", "+Z", "+Z", "-X", "-X"]),
+        
+        ("weird_closed_loop",
+         ["+X", "+X", "+Z", "+Z", "-X", "-X", "-Z", "-Z"]),
+        
+        ("weird_staircase_loop",
+         ["+X+Y", "+X+Y", "+X+Y", "+Z", "+Z", "-X-Y", "-X-Y", "-X-Y", "-Z", "-Z"]),
+        
+        ("weird_pretzel",
+         ["+X", "+Z+Y", "+X", "-Z-Y", "+X", "+Z+Y", "-X", "-Z-Y", "-X", "+Z", "-X", "-Z"]),
+        
+        ("weird_double_spiral",
+         ["+X", "+X", "+X", "+Z", "+Z", "+Z", "-X", "-X", "-X", "-Z", "-Z", "+X+Y", "+X+Y", "+Z", "+Z", "-X-Y", "-X-Y", "-Z"]),
+        
+        ("weird_tunnel_under",
+         ["+X", "+X", "+X+Y", "+X+Y", "+X+Y", "-Z", "-Z", "-X-Y", "-X-Y", "-X-Y", "-X", "-X", "+Z", "+Z", "+Z", "+Z"]),
+    ]
     
-    # ---- U-Turn Very Close ----
-    # Wire makes tight U-turn, running parallel very close to itself
-    start_uturn = (base_x, base_y, base_z + 30)
-    path_uturn = generate_path(start_uturn, ["+X", "+X", "+X", "+X", "+Z", "-X", "-X", "-X", "-X"])
-    routed_paths["weird_uturn_close"] = [path_uturn]
+    for idx, (name, moves) in enumerate(single_wire_tests):
+        start = grid_pos(idx)
+        path = generate_path(start, moves)
+        routed_paths[name] = [path]
     
-    # ---- Cross at Different Y Levels ----
-    # Wire goes up, over, and would cross itself if Y levels matched
-    start_ycross = (base_x + 40, base_y, base_z + 30)
-    path_ycross = generate_path(start_ycross, ["+X", "+X", "+X+Y", "+X+Y", "+Z", "+Z", 
-                                                "-X-Y", "-X-Y", "-X", "-X", "-Z", "-Z"])
-    routed_paths["weird_cross_diff_y"] = [path_ycross]
+    # ========================================
+    # Two-wire "+" intersection tests (proper crossings with slopes)
+    # Each wire goes THROUGH the crossing point with segments on both sides.
+    # Format: (name, wire1_offset, wire1_moves_before, wire1_moves_after,
+    #                wire2_offset, wire2_moves_before, wire2_moves_after)
+    # The crossing happens at the center of the cell (around x+8, z+10)
+    # ========================================
+    next_idx = len(single_wire_tests)
     
-    # ---- 3D Helix Self-Cross ----
-    # Wire makes a 3D helix pattern that crosses over itself
-    start_helix = (base_x + 90, base_y, base_z + 30)
-    path_helix = generate_path(start_helix, ["+X+Y", "+Z", "+Z", "-X+Y", "-Z", "-Z", 
-                                              "+X+Y", "+Z", "+Z", "-X-Y", "-Z"])
-    routed_paths["weird_helix_self_cross"] = [path_helix]
+    # Center point for crossings within each cell
+    cx, cz = 10, 12  # center offsets
     
-    # ---- Box Pattern (Near-Closed Loop) ----
-    # Wire forms a rectangular box, ending very close to start
-    start_box = (base_x, base_y, base_z + 55)
-    path_box = generate_path(start_box, ["+X", "+X", "+X", "+X", "+Z", "+Z", "+Z", "+Z",
-                                          "-X", "-X", "-X", "-X", "-Z", "-Z", "-Z"])
-    routed_paths["weird_box_near_closed"] = [path_box]
+    intersection_tests = [
+        # ---- 3 FLAT + 1 UPWARD SLOPE ----
+        # All flat except one segment is upward slope
+        
+        # Wire1: flat-flat (along X), Wire2: flat-upslope (along Z, exits up)
+        ("plus_3flat_1up_exit",
+         (0, 0, cz), ["+X", "+X"], ["+X", "+X"],                    # flat X through
+         (cx, -2, 0), ["+Z"], ["+Z+Y", "+Z+Y"]),                    # flat in, slope out
+        
+        # Wire1: flat-flat (along X), Wire2: upslope-flat (along Z, enters going up)
+        ("plus_3flat_1up_enter",
+         (0, 2, cz), ["+X", "+X"], ["+X", "+X"],                    # flat X through
+         (cx, -2, 0), ["+Z+Y", "+Z+Y"], ["+Z"]),                    # slope in, flat out
+        
+        # Wire1: flat-upslope (along X), Wire2: flat-flat (along Z)
+        ("plus_3flat_1up_xexit",
+         (0, -2, cz), ["+X", "+X"], ["+X+Y", "+X+Y"],               # flat in, slope out
+         (cx, 0, 0), ["+Z", "+Z"], ["+Z", "+Z"]),                   # flat Z through
+        
+        # ---- 3 FLAT + 1 DOWNWARD SLOPE (impossible in routing) ----
+        
+        # Wire1: flat-flat, Wire2: flat-downslope
+        ("plus_3flat_1down_exit",
+         (0, 4, cz), ["+X", "+X", "+X", "+X"], ["+X", "+X", "+X", "+X"],                    # flat X through
+         (cx, 4, 0), ["+Z", "+Z", "+Z", "+Z"], ["+Z-Y", "+Z-Y", "+Z-Y", "+Z-Y"]),                     # flat in, slope down out
+        
+        # Wire1: flat-flat, Wire2: downslope-flat  
+        ("plus_3flat_1down_enter",
+         (0, 2, cz), ["+X", "+X"], ["+X", "+X"],                    # flat X through
+         (cx, 6, 0), ["+Z-Y", "+Z-Y"], ["+Z"]),                     # slope down in, flat out
+        
+        # ---- 2 FLAT + 2 UPWARD SLOPES ----
+        
+        # Wire1: flat-flat, Wire2: upslope-upslope (both segments are slopes)
+        ("plus_2flat_2up_onewire",
+         (0, 2, cz), ["+X", "+X"], ["+X", "+X"],                    # flat X through
+         (cx, -4, 0), ["+Z+Y", "+Z+Y"], ["+Z+Y", "+Z+Y"]),          # both Z segments are up slopes
+        
+        # Wire1: flat-upslope, Wire2: flat-upslope (each wire has one slope)
+        ("plus_2flat_2up_split",
+         (0, -2, cz), ["+X", "+X"], ["+X+Y", "+X+Y"],               # flat in, slope out on X
+         (cx, -2, 0), ["+Z"], ["+Z+Y", "+Z+Y"]),                    # flat in, slope out on Z
+        
+        # Wire1: upslope-flat, Wire2: upslope-flat (slopes on entry)
+        ("plus_2flat_2up_entries",
+         (0, -4, cz), ["+X+Y", "+X+Y"], ["+X", "+X"],               # slope in, flat out on X
+         (cx, -4, 0), ["+Z+Y", "+Z+Y"], ["+Z"]),                    # slope in, flat out on Z
+        
+        # ---- 2 FLAT + 2 DOWNWARD SLOPES (impossible in routing) ----
+        
+        # Wire1: flat-flat, Wire2: downslope-downslope
+        ("plus_2flat_2down_onewire",
+         (0, 4, cz), ["+X", "+X", "+X", "+X"], ["+X", "+X", "+X", "+X"],                    # flat X through
+         (cx, 12, 0), ["+Z-Y", "+Z-Y", "+Z-Y", "+Z-Y"], ["+Z-Y", "+Z-Y", "+Z-Y", "+Z-Y"]),          # both Z segments down slopes
+        
+        # Wire1: flat-downslope, Wire2: flat-downslope
+        ("plus_2flat_2down_split",
+         (0, 6, cz), ["+X", "+X"], ["+X-Y", "+X-Y"],                # flat in, slope down on X
+         (cx, 8, 0), ["+Z"], ["+Z-Y", "+Z-Y"]),                     # flat in, slope down on Z
+    ]
     
-    # ---- Multiple Self-Crossings ----
-    # Wire that crosses itself at multiple points
-    start_multi_cross = (base_x + 50, base_y, base_z + 55)
-    path_multi_cross = generate_path(start_multi_cross, ["+X", "+X", "+Z", "+Z", "-X", "-X",
-                                                          "+Z", "+Z", "+X", "+X", "-Z", "-Z",
-                                                          "-X", "-X", "-Z", "-Z", "+X"])
-    routed_paths["weird_multi_self_cross"] = [path_multi_cross]
-    
-    # ---- Stacked Loop (Up and Back) ----
-    # Wire goes up, makes a loop, comes back down near original path
-    start_stacked = (base_x + 100, base_y, base_z + 55)
-    path_stacked = generate_path(start_stacked, ["+X+Y", "+X+Y", "+Z", "+Z", "-X-Y", "-X-Y", 
-                                                  "-Z", "-Z", "+X", "+X"])
-    routed_paths["weird_stacked_loop"] = [path_stacked]
-    
-    # ---- Overlapping Segments (Same Path Revisited) ----
-    # Wire goes forward, back, then forward again on same axis
-    start_overlap = (base_x, base_y, base_z + 80)
-    path_overlap = generate_path(start_overlap, ["+X", "+X", "+X", "-X", "-X", "+X", "+X", "+X", "+X"])
-    routed_paths["weird_overlap_revisit"] = [path_overlap]
-    
-    # ---- Tight Zigzag Self-Touch ----
-    # Very tight zigzag where segments nearly touch
-    start_tight_zig = (base_x + 40, base_y, base_z + 80)
-    path_tight_zig = generate_path(start_tight_zig, ["+X", "+Z", "+X", "-Z", "+X", "+Z", 
-                                                      "+X", "-Z", "+X", "+Z"])
-    routed_paths["weird_tight_zigzag"] = [path_tight_zig]
-    
-    # ---- Knot Pattern ----
-    # Complex pattern resembling a knot with multiple crossings at different Y
-    start_knot = (base_x + 90, base_y, base_z + 80)
-    path_knot = generate_path(start_knot, ["+X+Y", "+X+Y", "+Z", "-X-Y", "-X-Y", "-Z", "-Z",
-                                            "+X+Y", "+X+Y", "+Z", "+Z", "-X", "-X"])
-    routed_paths["weird_knot_pattern"] = [path_knot]
-    
-    # ---- Complete Loop (Closed Circuit) ----
-    # Wire that forms a complete closed loop (ends at start)
-    start_closed = (base_x, base_y, base_z + 105)
-    path_closed = generate_path(start_closed, ["+X", "+X", "+Z", "+Z", "-X", "-X", "-Z", "-Z"])
-    routed_paths["weird_closed_loop"] = [path_closed]
-    
-    # ---- Staircase Loop ----
-    # Goes up stairs, around, then down stairs to form loop at different Y
-    start_stair_loop = (base_x + 40, base_y, base_z + 105)
-    path_stair_loop = generate_path(start_stair_loop, ["+X+Y", "+X+Y", "+X+Y", "+Z", "+Z",
-                                                        "-X-Y", "-X-Y", "-X-Y", "-Z", "-Z"])
-    routed_paths["weird_staircase_loop"] = [path_stair_loop]
-    
-    # ---- Pretzel Pattern ----
-    # Complex interweaving pattern like a pretzel
-    start_pretzel = (base_x + 100, base_y, base_z + 105)
-    path_pretzel = generate_path(start_pretzel, ["+X", "+Z+Y", "+X", "-Z-Y", "+X", "+Z+Y",
-                                                  "-X", "-Z-Y", "-X", "+Z", "-X", "-Z"])
-    routed_paths["weird_pretzel"] = [path_pretzel]
-    
-    # ---- Double Spiral ----
-    # Two loops of a spiral that cross when viewed from above
-    start_dbl_spiral = (base_x, base_y, base_z + 135)
-    path_dbl_spiral = generate_path(start_dbl_spiral, ["+X", "+X", "+X", "+Z", "+Z", "+Z",
-                                                        "-X", "-X", "-X", "-Z", "-Z",
-                                                        "+X+Y", "+X+Y", "+Z", "+Z",
-                                                        "-X-Y", "-X-Y", "-Z"])
-    routed_paths["weird_double_spiral"] = [path_dbl_spiral]
-    
-    # ---- Crossing Slopes ----
-    # Slope segments that cross at different heights
-    start_cross_slope = (base_x + 60, base_y, base_z + 135)
-    path_cross_slope = generate_path(start_cross_slope, ["+X+Y", "+X+Y", "+Z", "+Z", "+Z", "+Z",
-                                                          "-X-Y", "-X-Y", "-Z", "-Z"])
-    routed_paths["weird_crossing_slopes"] = [path_cross_slope]
-    
-    # ---- Tunnel Under Self ----
-    # Wire goes up and over, creating a tunnel it could pass under
-    start_tunnel = (base_x + 120, base_y, base_z + 135)
-    path_tunnel = generate_path(start_tunnel, ["+X", "+X", "+X+Y", "+X+Y", "+X+Y", 
-                                                "-Z", "-Z", "-X-Y", "-X-Y", "-X-Y",
-                                                "-X", "-X", "+Z", "+Z", "+Z", "+Z"])
-    routed_paths["weird_tunnel_under"] = [path_tunnel]
+    for idx, (base_name, off1, moves1_before, moves1_after, off2, moves2_before, moves2_after) in enumerate(intersection_tests):
+        pos = grid_pos(next_idx + idx)
+        
+        # Wire 1: before + after crossing
+        start1 = (pos[0] + off1[0], pos[1] + off1[1], pos[2] + off1[2])
+        path1 = generate_path(start1, moves1_before + moves1_after)
+        routed_paths[f"{base_name}_wire1"] = [path1]
+        
+        # Wire 2: before + after crossing
+        start2 = (pos[0] + off2[0], pos[1] + off2[1], pos[2] + off2[2])
+        path2 = generate_path(start2, moves2_before + moves2_after)
+        routed_paths[f"{base_name}_wire2"] = [path2]
 
     return routed_paths
 
@@ -825,12 +851,12 @@ def create_visualization(routed_paths: Dict[str, List[List[Tuple[int, int, int]]
         ((60, 10, 580), "🔁 SIGNAL DECAY - Mixed Types"),
         ((60, 10, 610), "🔁 SIGNAL DECAY - Very Long Wires"),
         ((180, 10, 610), "🔁 SIGNAL DECAY - Edge Cases"),
-        # Weird self-intersection tests (section 17 at Z=480)
-        ((60, 10, 480), "🔀 WEIRD - Figure-8 & Loop Patterns"),
-        ((60, 10, 510), "🔀 WEIRD - U-Turn & Box Patterns"),
-        ((60, 10, 535), "🔀 WEIRD - Multiple Crossings"),
-        ((60, 10, 560), "🔀 WEIRD - Closed Loops & Staircases"),
-        ((60, 10, 590), "🔀 WEIRD - Complex Patterns"),
+        # Weird patterns & slope intersection tests (section 17 at Z=480)
+        ((70, 10, 480), "🔀 Self-Intersections (Row 1)"),
+        ((70, 10, 508), "🔀 Self-Intersections (Row 2)"),
+        ((70, 10, 536), "🔀 Self-Intersections (Row 3)"),
+        ((70, 10, 564), "➕ 3 Flat + 1 Slope Crossings"),
+        ((70, 10, 592), "➕ 2 Flat + 2 Slope Crossings"),
     ]
     
     label_x = [l[0][0] for l in labels]

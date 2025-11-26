@@ -44,11 +44,16 @@ class RoutingGrid:
         self.wire_occupancy = {} # (gx, gy, gz) -> Set[net_name]
         self.wire_directions = {} # (gx, gy, gz) -> Set[Tuple[int, int, int]]
         
+        # Density map for center-avoidance routing
+        self.density_map = {}  # chunk -> density value (0.0 to 1.0)
+        self.chunk_size = 4  # Grid cells per chunk
+        
         # Initialize bounds with infinity
         self.min_coords = [float('inf')] * 3
         self.max_coords = [float('-inf')] * 3
         
         self._build_grid()
+        self._build_density_map()
 
     def _to_grid(self, val):
         return int(math.floor(val / 2))
@@ -90,6 +95,90 @@ class RoutingGrid:
                         if name not in self.node_to_coords:
                             self.node_to_coords[name] = set()
                         self.node_to_coords[name].add(coord)
+
+    def _build_density_map(self):
+        """Pre-compute density heatmap for center-avoidance routing.
+        
+        Uses a chunked approach: divides grid into chunks and counts component
+        volume in each. Also adds Gaussian falloff from high-density areas to
+        create smooth transitions.
+        """
+        chunk_size = self.chunk_size
+        
+        if not self.positions:
+            return
+        
+        print("Building density map for center-avoidance routing...")
+        
+        # Count component volume in each chunk
+        chunk_volume = {}  # chunk_coord -> total voxel count
+        
+        for name, pos in self.positions.items():
+            dims = self.nodes_data[name].get('dims', (1, 1, 1))
+            w, h, d = int(dims[0]), int(dims[1]), int(dims[2])
+            
+            # Get the grid coordinates this node occupies
+            x, y, z = pos[0], pos[1], pos[2]
+            x_start = self._to_grid(math.floor(x - w/2))
+            x_end = self._to_grid(math.ceil(x + w/2))
+            y_start = self._to_grid(math.floor(y - h/2))
+            y_end = self._to_grid(math.ceil(y + h/2))
+            z_start = self._to_grid(math.floor(z - d/2))
+            z_end = self._to_grid(math.ceil(z + d/2))
+            
+            # Increment chunk counts for each voxel
+            for gx in range(x_start, x_end + 1):
+                for gy in range(y_start, y_end + 1):
+                    for gz in range(z_start, z_end + 1):
+                        chunk = (gx // chunk_size, gy // chunk_size, gz // chunk_size)
+                        chunk_volume[chunk] = chunk_volume.get(chunk, 0) + 1
+        
+        if not chunk_volume:
+            return
+        
+        # Normalize by max volume to get base density (0-1)
+        max_volume = max(chunk_volume.values())
+        
+        # Apply Gaussian blur to spread density influence to neighboring chunks
+        # This creates smoother routing preferences
+        blurred_density = {}
+        blur_radius = 2  # How many chunks to spread influence
+        
+        for chunk, volume in chunk_volume.items():
+            base_density = volume / max_volume
+            cx, cy, cz = chunk
+            
+            # Spread to nearby chunks with Gaussian falloff
+            for dx in range(-blur_radius, blur_radius + 1):
+                for dy in range(-blur_radius, blur_radius + 1):
+                    for dz in range(-blur_radius, blur_radius + 1):
+                        neighbor = (cx + dx, cy + dy, cz + dz)
+                        # Gaussian weight: closer = higher influence
+                        dist_sq = dx*dx + dy*dy + dz*dz
+                        weight = math.exp(-dist_sq / (blur_radius * 0.8))
+                        contribution = base_density * weight
+                        
+                        blurred_density[neighbor] = blurred_density.get(neighbor, 0) + contribution
+        
+        # Normalize blurred density to 0-1 range
+        if blurred_density:
+            max_blurred = max(blurred_density.values())
+            for chunk in blurred_density:
+                blurred_density[chunk] /= max_blurred
+        
+        self.density_map = blurred_density
+        print(f"  Density map: {len(blurred_density)} chunks, max raw volume: {max_volume}")
+
+    def get_density_penalty(self, point):
+        """Get density-based routing penalty for a grid point.
+        
+        Returns a value between 0.0 and 0.1, higher near dense component clusters.
+        """
+        chunk = (point[0] // self.chunk_size, 
+                 point[1] // self.chunk_size, 
+                 point[2] // self.chunk_size)
+        density = self.density_map.get(chunk, 0.0)
+        return 0.1 * density
 
     def _is_cardinal(self, vec):
         return (vec[0] != 0) + (vec[1] != 0) + (vec[2] != 0) == 1
@@ -266,7 +355,7 @@ class RoutingGrid:
             if has_slope_contact:
                 base *= 0.5
             if near_endpoint:
-                base *= 0.1
+                base *= 0.2
             return base * len(nets)
 
         valid = []
@@ -292,7 +381,7 @@ class RoutingGrid:
                     continue
                 if fast_path or not forceful:
                     dest_dirs = get_dirs(target)
-                    if not (dest_dirs and all((is_cardinal(d) or d[1] > 0) and is_perpendicular(d, move_vec) for d in dest_dirs)):
+                    if not (dest_dirs and all(is_cardinal(d) and is_perpendicular(d, move_vec) for d in dest_dirs)):
                         if not (current_dirs and all(is_cardinal(d) and is_perpendicular(d, move_vec) for d in current_dirs)):
                             continue
 
@@ -316,6 +405,10 @@ class RoutingGrid:
                         pass
 
             cost = base_cost
+            
+            # Density-based center avoidance penalty
+            density_penalty = self.get_density_penalty(target)
+            cost += density_penalty
 
             if fast_path:
                 if up_dirs and move_vec not in up_dirs:
@@ -372,7 +465,7 @@ def a_star(start, goal, grid, allowed_points, max_steps=50_000, forceful=False, 
         # Account for slope costs in heuristic (underestimate to stay admissible)
         # Slopes cost 2.5 but move 2 units horizontally, so ~1.25 per unit
         # Use slightly higher weight to guide search better while staying admissible
-        return max(dx, dz) + min(dx, dz) * 0.5 + dy * 2.0
+        return max(dx, dz) + min(dx, dz) * 0.5 + dy * 3.0
         
     open_set = []
     heapq.heappush(open_set, (h(start), 0, start))
