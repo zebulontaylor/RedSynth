@@ -430,10 +430,7 @@ def a_star(start, goal, grid, allowed_points, max_steps=50_000, forceful=False, 
                 
                 # If going back and at least one move is a downward slope, skip this neighbor
                 if is_back:
-                    prev_is_downslope = prev_dy < 0
-                    new_is_downslope = new_dy < 0
-                    if prev_is_downslope or new_is_downslope:
-                        continue
+                    continue
 
             tentative_g = current_g + move_cost + penalty
             
