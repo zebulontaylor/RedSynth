@@ -232,6 +232,8 @@ def visualize_graph_interactive(G: nx.DiGraph, positions: Dict[str, Tuple[float,
     BLOCK_STYLES = {
         "redstone_wire": {"color": "red", "opacity": 0.8, "name": "Redstone Dust", "ymin": 0.0, "ymax": 0.3},
         "stone": {"color": "gray", "opacity": 1.0, "name": "Stone"},
+        "glass": {"color": "lightgray", "opacity": 0.4, "name": "Glass"},
+        "repeater": {"color": "yellow", "opacity": 0.9, "name": "Repeater", "ymin": 0.0, "ymax": 0.3},
         "default": {"color": "purple", "opacity": 0.5, "name": "Unknown Block"}
     }
 
@@ -366,148 +368,150 @@ def visualize_graph_interactive(G: nx.DiGraph, positions: Dict[str, Tuple[float,
         j_indices.extend([base_idx+0, base_idx+4])
         k_indices.extend([base_idx+4, base_idx+7])
         
-    cell_types = sorted(list(set(G.nodes[n].get('cell_type', 'unknown') for n in positions)))
-    
-    import colorsys
-    def generate_colors(n):
-        colors = []
-        for i in range(n):
-            hue = (i * 0.618033988749895) % 1.0
-            sat = 0.7 + (random.random() * 0.3)
-            val = 0.8 + (random.random() * 0.2)
-            r, g, b = colorsys.hsv_to_rgb(hue, sat, val)
-            colors.append(f'rgb({int(r*255)},{int(g*255)},{int(b*255)})')
-        return colors
+    # Only render node boxes, pins, and constants if the graph is available
+    if G is not None and positions:
+        cell_types = sorted(list(set(G.nodes[n].get('cell_type', 'unknown') for n in positions)))
         
-    type_colors = dict(zip(cell_types, generate_colors(len(cell_types))))
-    vertex_colors = []
-    node_names = []
-    
-    for node, (x, y, z) in positions.items():
-        dims = G.nodes[node].get('dims', (1, 1, 1))
-        w, h, d = dims
-        
-        cell_type = G.nodes[node].get('cell_type', 'unknown')
-        color = type_colors.get(cell_type, 'rgb(200,200,200)')
-        
-        add_box(x, y, z, w, h, d, 0, node)
-        vertex_colors.extend([color] * 8)
-        
-        info_text = f"{node} ({cell_type})"
-        hover_texts.extend([info_text] * 8)
-        node_names.append(info_text)
-
-    fig.add_trace(go.Mesh3d(
-        x=x_coords,
-        y=y_coords,
-        z=z_coords,
-        i=i_indices,
-        j=j_indices,
-        k=k_indices,
-        vertexcolor=vertex_colors,
-        text=hover_texts,
-        opacity=1.0,
-        name='Nodes',
-        hoverinfo='text',
-        lighting=dict(ambient=0.7, diffuse=0.8, specular=0.2)
-    ))
-    
-    # Add port indicators (pin locations)
-    pin_x = []
-    pin_y = []
-    pin_z = []
-    pin_text = []
-    
-    for node, (x, y, z) in positions.items():
-        dims = G.nodes[node].get('dims', (1, 1, 1))
-        w, h, d = dims
-        pin_locations = G.nodes[node].get('pin_locations', {})
-        
-        for pin_name, (pin_ox, pin_oy, pin_oz) in pin_locations.items():
-            # Calculate absolute pin position
-            abs_x = int(round(x - w/2 + pin_ox))
-            abs_y = int(round(y - h/2 + pin_oy))
-            abs_z = int(round(z - d/2 + pin_oz))
+        import colorsys
+        def generate_colors(n):
+            colors = []
+            for i in range(n):
+                hue = (i * 0.618033988749895) % 1.0
+                sat = 0.7 + (random.random() * 0.3)
+                val = 0.8 + (random.random() * 0.2)
+                r, g, b = colorsys.hsv_to_rgb(hue, sat, val)
+                colors.append(f'rgb({int(r*255)},{int(g*255)},{int(b*255)})')
+            return colors
             
-            # Transform to plotly coordinates (swap y and z)
-            pin_x.append(abs_x)
-            pin_y.append(abs_z)
-            pin_z.append(abs_y)
-            pin_text.append(f"{node}::{pin_name}")
-    
-    # Add pin markers
-    if pin_x:
-        fig.add_trace(go.Scatter3d(
-            x=pin_x,
-            y=pin_y,
-            z=pin_z,
-            mode='markers',
-            marker=dict(
-                size=4,
-                color='red',
-                symbol='circle',
-                line=dict(color='darkred', width=1)
-            ),
-            text=pin_text,
-            hoverinfo='text',
-            name='Ports/Pins'
-        ))
-    
-    # Visualize Constants
-    const_x = []
-    const_y = []
-    const_z = []
-    const_text = []
-    const_colors = []
-    
-    for node, (x, y, z) in positions.items():
-        constants = G.nodes[node].get('constants', {})
-        dims = G.nodes[node].get('dims', (1, 1, 1))
-        w, h, d = dims
-        pin_locations = G.nodes[node].get('pin_locations', {})
+        type_colors = dict(zip(cell_types, generate_colors(len(cell_types))))
+        vertex_colors = []
+        node_names = []
         
-        for pin_name, val in constants.items():
-             if pin_name in pin_locations:
-                 px, py, pz = pin_locations[pin_name]
-                 abs_x = int(round(x - w/2 + px))
-                 abs_y = int(round(y - h/2 + py))
-                 abs_z = int(round(z - d/2 + pz))
-                 
-                 # Calculate vector from center to pin
-                 vx = abs_x - x
-                 vy = abs_y - y
-                 vz = abs_z - z
-                 
-                 # Normalize and apply offset
-                 mag = math.sqrt(vx*vx + vy*vy + vz*vz)
-                 offset = 0.8
-                 if mag > 0:
-                     off_x = (vx / mag) * offset
-                     off_y = (vy / mag) * offset
-                     off_z = (vz / mag) * offset
-                 else:
-                     off_x, off_y, off_z = 0, 0, 0
-                 
-                 const_x.append(abs_x + off_x)
-                 const_y.append(abs_z + off_z) # Swap Y/Z
-                 const_z.append(abs_y + off_y)
-                 const_text.append(val)
-                 const_colors.append('blue' if val == '0' else 'red')
+        for node, (x, y, z) in positions.items():
+            dims = G.nodes[node].get('dims', (1, 1, 1))
+            w, h, d = dims
+            
+            cell_type = G.nodes[node].get('cell_type', 'unknown')
+            color = type_colors.get(cell_type, 'rgb(200,200,200)')
+            
+            add_box(x, y, z, w, h, d, 0, node)
+            vertex_colors.extend([color] * 8)
+            
+            info_text = f"{node} ({cell_type})"
+            hover_texts.extend([info_text] * 8)
+            node_names.append(info_text)
 
-    if const_x:
-        fig.add_trace(go.Scatter3d(
-            x=const_x,
-            y=const_y,
-            z=const_z,
-            mode='text',
-            text=const_text,
-            textfont=dict(
-                size=12,
-                color=const_colors
-            ),
-            hoverinfo='none',
-            name='Constants'
+        fig.add_trace(go.Mesh3d(
+            x=x_coords,
+            y=y_coords,
+            z=z_coords,
+            i=i_indices,
+            j=j_indices,
+            k=k_indices,
+            vertexcolor=vertex_colors,
+            text=hover_texts,
+            opacity=1.0,
+            name='Nodes',
+            hoverinfo='text',
+            lighting=dict(ambient=0.7, diffuse=0.8, specular=0.2)
         ))
+        
+        # Add port indicators (pin locations)
+        pin_x = []
+        pin_y = []
+        pin_z = []
+        pin_text = []
+        
+        for node, (x, y, z) in positions.items():
+            dims = G.nodes[node].get('dims', (1, 1, 1))
+            w, h, d = dims
+            pin_locations = G.nodes[node].get('pin_locations', {})
+            
+            for pin_name, (pin_ox, pin_oy, pin_oz) in pin_locations.items():
+                # Calculate absolute pin position
+                abs_x = int(round(x - w/2 + pin_ox))
+                abs_y = int(round(y - h/2 + pin_oy))
+                abs_z = int(round(z - d/2 + pin_oz))
+                
+                # Transform to plotly coordinates (swap y and z)
+                pin_x.append(abs_x)
+                pin_y.append(abs_z)
+                pin_z.append(abs_y)
+                pin_text.append(f"{node}::{pin_name}")
+        
+        # Add pin markers
+        if pin_x:
+            fig.add_trace(go.Scatter3d(
+                x=pin_x,
+                y=pin_y,
+                z=pin_z,
+                mode='markers',
+                marker=dict(
+                    size=4,
+                    color='red',
+                    symbol='circle',
+                    line=dict(color='darkred', width=1)
+                ),
+                text=pin_text,
+                hoverinfo='text',
+                name='Ports/Pins'
+            ))
+        
+        # Visualize Constants
+        const_x = []
+        const_y = []
+        const_z = []
+        const_text = []
+        const_colors = []
+        
+        for node, (x, y, z) in positions.items():
+            constants = G.nodes[node].get('constants', {})
+            dims = G.nodes[node].get('dims', (1, 1, 1))
+            w, h, d = dims
+            pin_locations = G.nodes[node].get('pin_locations', {})
+            
+            for pin_name, val in constants.items():
+                 if pin_name in pin_locations:
+                     px, py, pz = pin_locations[pin_name]
+                     abs_x = int(round(x - w/2 + px))
+                     abs_y = int(round(y - h/2 + py))
+                     abs_z = int(round(z - d/2 + pz))
+                     
+                     # Calculate vector from center to pin
+                     vx = abs_x - x
+                     vy = abs_y - y
+                     vz = abs_z - z
+                     
+                     # Normalize and apply offset
+                     mag = math.sqrt(vx*vx + vy*vy + vz*vz)
+                     offset = 0.8
+                     if mag > 0:
+                         off_x = (vx / mag) * offset
+                         off_y = (vy / mag) * offset
+                         off_z = (vz / mag) * offset
+                     else:
+                         off_x, off_y, off_z = 0, 0, 0
+                     
+                     const_x.append(abs_x + off_x)
+                     const_y.append(abs_z + off_z) # Swap Y/Z
+                     const_z.append(abs_y + off_y)
+                     const_text.append(val)
+                     const_colors.append('blue' if val == '0' else 'red')
+
+        if const_x:
+            fig.add_trace(go.Scatter3d(
+                x=const_x,
+                y=const_y,
+                z=const_z,
+                mode='text',
+                text=const_text,
+                textfont=dict(
+                    size=12,
+                    color=const_colors
+                ),
+                hoverinfo='none',
+                name='Constants'
+            ))
     
     # Highlight Failed Connections
     if failed_nets:

@@ -295,19 +295,19 @@ class RoutingGrid:
                             # Check if within 1 block of start or goal
                             if start_point:
                                 dist_to_start = abs(bp[0]-start_point[0]) + abs(bp[1]-start_point[1]) + abs(bp[2]-start_point[2])
-                                if dist_to_start <= 1:
+                                if dist_to_start <= 2:
                                     is_near_endpoint = True
                             if goal_point:
                                 dist_to_goal = abs(bp[0]-goal_point[0]) + abs(bp[1]-goal_point[1]) + abs(bp[2]-goal_point[2])
-                                if dist_to_goal <= 1:
+                                if dist_to_goal <= 2:
                                     is_near_endpoint = True
                         
                         # Base penalty 400, halved for slopes, halved again for near endpoints
                         base_penalty = 400.0
                         if is_sloped:
-                            base_penalty = 200.0
-                        if is_near_endpoint:
                             base_penalty *= 0.5
+                        if is_near_endpoint:
+                            base_penalty *= 0.1
                         final_cost += base_penalty
 
                 # Apply penalty for differing from neighbors above/below
@@ -337,7 +337,7 @@ class RoutingGrid:
 def a_star(start, goal, grid, allowed_points, max_steps=50_000, forceful=False, penalty_points=None, debug_goal=False, max_cost=None):
     def h(p1, p2):
         # Euclidean distance is better for 3D with diagonals
-        return math.sqrt((p1[0]-p2[0])**2 + (p1[1]-p2[1])**2 + (p1[2]-p2[2])**2)
+        return abs(p1[0]-p2[0]) + 2*abs(p1[1]-p2[1]) + abs(p1[2]-p2[2])
         
     open_set = []
     heapq.heappush(open_set, (h(start, goal), 0, start))
