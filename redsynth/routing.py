@@ -256,6 +256,11 @@ class RoutingGrid:
                     if fp not in self.wire_occupancy:
                         self.wire_occupancy[fp] = set()
                     self.wire_occupancy[fp].add(net_name)
+                    # Store direction at midpoints too so crossing detection works for slopes
+                    if fp != p1 and fp != p2:
+                        if fp not in self.wire_directions:
+                            self.wire_directions[fp] = set()
+                        self.wire_directions[fp].add((dx, dy, dz))
 
     def remove_path(self, path, net_name):
         for i in range(len(path)):
@@ -288,6 +293,11 @@ class RoutingGrid:
                         if not self.wire_occupancy[fp]:
                             del self.wire_occupancy[fp]
                             self.blocked_coords.discard(fp)
+                    # Remove direction from midpoints too
+                    if fp != p1 and fp != p2 and fp in self.wire_directions:
+                        self.wire_directions[fp].discard((dx, dy, dz))
+                        if not self.wire_directions[fp]:
+                            del self.wire_directions[fp]
 
     def get_neighbors(self, point, allowed_points=None, forceful=False, penalty_points=None, start_point=None, goal_point=None, prev_direction=None):
         x, y, z = point
@@ -381,9 +391,20 @@ class RoutingGrid:
                     continue
                 if fast_path or not forceful:
                     dest_dirs = get_dirs(target)
-                    if not (dest_dirs and all(is_cardinal(d) and is_perpendicular(d, move_vec) for d in dest_dirs)):
-                        if not (current_dirs and all(is_cardinal(d) and is_perpendicular(d, move_vec) for d in current_dirs)):
+                    if is_slope:
+                        # Slopes can only pass through a blocked target if following an existing slope path
+                        if not (dest_dirs and move_vec in dest_dirs):
                             continue
+                    else:
+                        # Cardinals can only cross perpendicular cardinals (not slopes)
+                        # First check: dest must have ONLY cardinal directions (no slopes)
+                        if dest_dirs and not all(is_cardinal(d) for d in dest_dirs):
+                            # Destination has slope directions - cannot cross
+                            continue
+                        # Second check: crossing must be perpendicular
+                        if not (dest_dirs and all(is_perpendicular(d, move_vec) for d in dest_dirs)):
+                            if not (current_dirs and all(is_cardinal(d) and is_perpendicular(d, move_vec) for d in current_dirs)):
+                                continue
 
             if is_slope:
                 mid_start = (x + mid_start_rel[0], y + mid_start_rel[1], z + mid_start_rel[2])
@@ -700,7 +721,7 @@ def _get_net_length(net_data, positions, nodes_data):
     return length
 
 
-def route_nets(G: nx.DiGraph, positions: Dict[str, Tuple[float, float, float]], max_time_seconds: float = None) -> Tuple[Dict[str, List[List[Tuple[int, int, int]]]], List[Dict]]:
+def route_nets(G: nx.DiGraph, positions: Dict[str, Tuple[float, float, float]], max_time_seconds: float = None) -> Tuple[Dict[str, List[List[Tuple[int, int, int]]]], List[Dict], RoutingGrid]:
     print("Starting routing (Voxel Mode)...")
     
     nodes_data = {}
@@ -1028,4 +1049,4 @@ def route_nets(G: nx.DiGraph, positions: Dict[str, Tuple[float, float, float]], 
         routed_paths[net_name] = world_paths
 
     print(f"\nRouting complete. Failed connections: {failed_connections}/{total_connections}")
-    return routed_paths, failed_connections_list
+    return routed_paths, failed_connections_list, grid

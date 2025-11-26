@@ -218,7 +218,7 @@ def visualize_2d_projection(G: nx.DiGraph, positions: Dict[str, Tuple[float, flo
     print("Done.")
 
 
-def visualize_graph_interactive(G: nx.DiGraph, positions: Dict[str, Tuple[float, float, float]], routed_paths: Optional[Dict[str, List[List[Tuple[int, int, int]]]]] = None, failed_nets: Optional[List[Dict]] = None, grid: Optional[RoutingGrid] = None, block_grid: Optional[Dict[Tuple[int, int, int], str]] = None, output_filename: str = "netlist_graph.html"):
+def visualize_graph_interactive(G: nx.DiGraph, positions: Dict[str, Tuple[float, float, float]], routed_paths: Optional[Dict[str, List[List[Tuple[int, int, int]]]]] = None, failed_nets: Optional[List[Dict]] = None, grid: Optional[RoutingGrid] = None, block_grid: Optional[Dict[Tuple[int, int, int], str]] = None, wire_positions: Optional[Dict[Tuple[int, int, int], Dict[str, str]]] = None, output_filename: str = "netlist_graph.html"):
     """Visualizes the graph using Plotly for interactive 3D exploration."""
     if go is None:
         print("Plotly is not installed. Skipping interactive visualization.")
@@ -543,6 +543,59 @@ def visualize_graph_interactive(G: nx.DiGraph, positions: Dict[str, Tuple[float,
                 text=fail_text,
                 hoverinfo='text',
                 name='Failed Connections'
+            ))
+
+    # Highlight positions with multiple nets (from redstone wire placement with Y-offsets applied)
+    if wire_positions is not None:
+        multi_net_x, multi_net_y, multi_net_z = [], [], []
+        multi_net_text = []
+        multi_net_colors = []
+        
+        for pos, net_dict in wire_positions.items():
+            if len(net_dict) > 1:
+                # wire_positions are already in world coords (from redstone.py)
+                wx, wy, wz = pos
+                
+                # Transform to plotly coordinates (swap y and z)
+                multi_net_x.append(wx)
+                multi_net_y.append(wz)  # Swap Y/Z
+                multi_net_z.append(wy)
+                
+                # Create hover text with net names and their directions
+                net_info = [f"{net}({dir})" for net, dir in sorted(net_dict.items())]
+                hover = f"Multi-net ({len(net_dict)}): {', '.join(net_info[:5])}"
+                if len(net_info) > 5:
+                    hover += f" +{len(net_info) - 5} more"
+                multi_net_text.append(hover)
+                
+                # Color based on number of nets (more nets = more intense)
+                multi_net_colors.append(len(net_dict))
+        
+        if multi_net_x:
+            print(f"  Found {len(multi_net_x)} positions with multiple nets (after Y-offset)")
+            fig.add_trace(go.Scatter3d(
+                x=multi_net_x,
+                y=multi_net_y,
+                z=multi_net_z,
+                mode='markers',
+                marker=dict(
+                    size=8,
+                    color=multi_net_colors,
+                    colorscale='YlOrRd',
+                    cmin=2,
+                    cmax=max(multi_net_colors) if multi_net_colors else 2,
+                    symbol='diamond',
+                    line=dict(color='black', width=1),
+                    colorbar=dict(
+                        title='Net Count',
+                        x=1.02,
+                        len=0.5,
+                        y=0.25
+                    )
+                ),
+                text=multi_net_text,
+                hoverinfo='text',
+                name='Multi-Net Positions'
             ))
 
     if routed_paths:

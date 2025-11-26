@@ -78,7 +78,7 @@ def get_wire_positions_for_segment(
     
     return positions
 
-def generate_redstone_grid(routed_paths: Dict[str, List[List[Tuple[int, int, int]]]]) -> Dict[Tuple[int, int, int], str]:
+def generate_redstone_grid(routed_paths: Dict[str, List[List[Tuple[int, int, int]]]]) -> Tuple[Dict[Tuple[int, int, int], str], Dict[Tuple[int, int, int], Dict[str, str]]]:
     """
     Generates a sparse grid of blocks based on routed paths using a two-pass system
     with directional layer assignment.
@@ -91,7 +91,10 @@ def generate_redstone_grid(routed_paths: Dict[str, List[List[Tuple[int, int, int
         routed_paths: Dictionary mapping net names to lists of paths.
         
     Returns:
-        Dictionary mapping (x, y, z) coordinates to block type strings.
+        Tuple of:
+        - Dictionary mapping (x, y, z) coordinates to block type strings.
+        - Dictionary mapping (x, y, z) to Dict[net_name, direction] for wire positions
+          (useful for visualizing multi-net positions)
     """
     # Track wire positions and their directions
     # (x, y, z) -> Dict[net_name, direction ('x' or 'z')]
@@ -217,7 +220,7 @@ def generate_redstone_grid(routed_paths: Dict[str, List[List[Tuple[int, int, int
     # ===================
     grid = apply_signal_delay_repeaters(grid, routed_paths, wire_positions)
 
-    return grid
+    return grid, wire_positions
 
 def build_net_graph(paths: List[List[Tuple[int, int, int]]]) -> Tuple[Dict[Tuple[int, int, int], List[Tuple[int, int, int]]], Tuple[int, int, int]]:
     """

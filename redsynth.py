@@ -119,7 +119,7 @@ if __name__ == "__main__":
         # Regenerate block_grid from routed_paths (allows iterating on redstone conversion)
         print("Regenerating redstone block grid...")
         from redsynth.redstone import generate_redstone_grid
-        block_grid = generate_redstone_grid(routed_paths)
+        block_grid, wire_positions = generate_redstone_grid(routed_paths)
         print(f"Generated {len(block_grid)} blocks.")
         
         # Create a minimal graph with node metadata for visualization
@@ -129,7 +129,7 @@ if __name__ == "__main__":
             G.add_node(node_name, **meta)
         
         print("Visualizing loaded model...")
-        visualize_graph_interactive(G, optimized_pos, routed_paths=routed_paths, failed_nets=failed_nets, block_grid=block_grid)
+        visualize_graph_interactive(G, optimized_pos, routed_paths=routed_paths, failed_nets=failed_nets, block_grid=block_grid, wire_positions=wire_positions)
     else:
         # Full synthesis flow
         netlist_file = args.netlist
@@ -166,17 +166,17 @@ if __name__ == "__main__":
 
         print("Using optimized placement.")
         # Run routing
-        routed_paths, failed_nets = route_nets(G, optimized_pos)
+        routed_paths, failed_nets, grid = route_nets(G, optimized_pos)
         
         # Generate Redstone Grid
         print("Generating redstone block grid...")
         from redsynth.redstone import generate_redstone_grid
-        block_grid = generate_redstone_grid(routed_paths)
+        block_grid, wire_positions = generate_redstone_grid(routed_paths)
         print(f"Generated {len(block_grid)} blocks.")
         
         visualize_graph(G, positions=optimized_pos, routed_paths=routed_paths)
         visualize_2d_projection(G, optimized_pos, routed_paths=routed_paths)
-        visualize_graph_interactive(G, optimized_pos, routed_paths=routed_paths, failed_nets=failed_nets, block_grid=block_grid)
+        visualize_graph_interactive(G, optimized_pos, routed_paths=routed_paths, failed_nets=failed_nets, grid=grid, block_grid=block_grid, wire_positions=wire_positions)
         
         # Save the routed model if all connections succeeded
         if not failed_nets:
