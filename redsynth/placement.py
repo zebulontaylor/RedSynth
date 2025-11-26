@@ -67,7 +67,7 @@ class SpatialIndex:
         return False
 
 
-def _generate_spiral_offsets(max_offsets: int = 1_000_000, step: int = 2) -> List[Tuple[int, int, int]]:
+def _generate_spiral_offsets(max_offsets: int = 250_000, step: int = 2) -> List[Tuple[int, int, int]]:
     """Generate spiral offsets in increasing cost order and cache the result."""
     offsets: List[Tuple[int, int, int]] = []
     pq: List[Tuple[float, float, int, int, int]] = [(0.0, 0.0, 0, 0, 0)]
@@ -259,10 +259,10 @@ def legalize_placement(G: nx.DiGraph, raw_pos: Dict[str, Tuple[float, float, flo
         G: The netlist graph
         raw_pos: Initial positions from spring layout
         padding_phases: List of padding values to use in each phase (decreasing order)
-                       Default: [30, 24, 18, 12]
+                       Default: [24, 12]
     """
     if padding_phases is None:
-        padding_phases = [30, 24, 18, 12]
+        padding_phases = [24, 12]
     
     print(f"Legalizing placement with {len(padding_phases)} phases (padding: {padding_phases})...")
     
@@ -430,13 +430,16 @@ def legalize_placement(G: nx.DiGraph, raw_pos: Dict[str, Tuple[float, float, flo
             info = node_info[node]
             base_w, base_h, base_d = info['w_padded'], info['h_padded'], info['d_padded']
             
-            # Try all 4 rotations and pick the best one
+            # Try rotations: only test all rotations in later phases or if 0° fails
+            # In first phase, just try 0° for speed
             best_rotation = 0
             best_cost = float('inf')
             best_position = None
             best_box = None
             
-            for rotation in [0, 90, 180, 270]:
+            rotations_to_try = [0] if phase_idx == 0 else [0, 90, 270]
+            
+            for rotation in rotations_to_try:
                 w, h, d = rotate_dimensions(base_w, base_h, base_d, rotation)
                 
                 # Snap to even coordinates
