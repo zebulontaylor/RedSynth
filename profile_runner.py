@@ -1,7 +1,7 @@
 
 import cProfile
 import pstats
-import netlist_parser
+import redsynth as netlist_parser
 import sys
 import time
 

@@ -5,6 +5,9 @@ import heapq
 import random
 import math
 
+# Global cache for spiral offsets to avoid recomputation
+_SPIRAL_OFFSETS_CACHE = None
+
 class SpatialIndex:
     """
     A simple spatial hashing index for fast 3D collision detection.
@@ -30,16 +33,18 @@ class SpatialIndex:
 
     def insert(self, box: Tuple[int, int, int, int, int, int]):
         x, y, z, w, h, d = box
+        buckets = self.buckets
+        bucket_append = list.append
         for key in self._get_bucket_keys(x, y, z, w, h, d):
-            if key not in self.buckets:
-                self.buckets[key] = []
-            self.buckets[key].append(box)
+            bucket = buckets.get(key)
+            if bucket is None:
+                bucket = buckets[key] = []
+            bucket_append(bucket, box)
 
     def query(self, x, y, z, w, h, d) -> bool:
         """Returns True if the box overlaps with any existing box in the index."""
-        # Optimization: Avoid allocating set for checked_boxes
-        # It is faster to re-check a few boxes than to allocate a set for every query
-        
+        buckets = self.buckets
+
         min_bx = int(x // self.bucket_size)
         max_bx = int((x + w) // self.bucket_size)
         min_by = int(y // self.bucket_size)
@@ -50,16 +55,53 @@ class SpatialIndex:
         for bx in range(min_bx, max_bx + 1):
             for by in range(min_by, max_by + 1):
                 for bz in range(min_bz, max_bz + 1):
-                    key = (bx, by, bz)
-                    if key in self.buckets:
-                        for obox in self.buckets[key]:
-                            ox, oy, oz, ow, oh, od = obox
-                            # Fast AABB check
-                            if (x < ox + ow and x + w > ox and
-                                y < oy + oh and y + h > oy and
-                                z < oz + od and z + d > oz):
-                                return True
+                    bucket = buckets.get((bx, by, bz))
+                    if not bucket:
+                        continue
+                    for ox, oy, oz, ow, oh, od in bucket:
+                        # Fast AABB check
+                        if (x < ox + ow and x + w > ox and
+                            y < oy + oh and y + h > oy and
+                            z < oz + od and z + d > oz):
+                            return True
         return False
+
+
+def _generate_spiral_offsets(max_offsets: int = 1_000_000, step: int = 2) -> List[Tuple[int, int, int]]:
+    """Generate spiral offsets in increasing cost order and cache the result."""
+    offsets: List[Tuple[int, int, int]] = []
+    pq: List[Tuple[float, float, int, int, int]] = [(0.0, 0.0, 0, 0, 0)]
+    visited = {(0, 0, 0)}
+    rand = random.Random(42)
+    y_penalty = 40.0
+
+    while pq and len(offsets) < max_offsets:
+        cost, _, dx, dy, dz = heapq.heappop(pq)
+        offsets.append((dx, dy, dz))
+
+        for next_x, next_y, next_z in (
+            (dx + step, dy, dz), (dx - step, dy, dz),
+            (dx, dy + step, dz), (dx, dy - step, dz),
+            (dx, dy, dz + step), (dx, dy, dz - step),
+        ):
+            key = (next_x, next_y, next_z)
+            if key in visited:
+                continue
+            visited.add(key)
+            effective_y_penalty = y_penalty * abs(next_y) / (abs(next_x) + abs(next_z) + 1)
+            effective_y_penalty = max(effective_y_penalty, 2.0)
+            new_cost = next_x * next_x + effective_y_penalty * next_y * next_y + next_z * next_z
+            heapq.heappush(pq, (new_cost, rand.random(), next_x, next_y, next_z))
+
+    return offsets
+
+
+def _get_spiral_offsets() -> List[Tuple[int, int, int]]:
+    global _SPIRAL_OFFSETS_CACHE
+    if _SPIRAL_OFFSETS_CACHE is None:
+        print("Generating spiral offsets cache...")
+        _SPIRAL_OFFSETS_CACHE = _generate_spiral_offsets()
+    return _SPIRAL_OFFSETS_CACHE
 
 
 def calculate_spring_layout(G: nx.DiGraph, max_time_seconds: float = 60.0) -> Dict[str, Tuple[float, float, float]]:
@@ -111,13 +153,13 @@ def calculate_spring_layout(G: nx.DiGraph, max_time_seconds: float = 60.0) -> Di
         k=k_val, 
         pos=pos if pos else None, 
         fixed=fixed_nodes if fixed_nodes else None, 
-        iterations=4000,
+        iterations=2000,
         weight='weight', 
         seed=42,
         scale=scale
     )
     
-    iterations = 2000
+    iterations = 1000
     t = scale * 0.1
     dt = t / (iterations + 1)
     y_gravity = 0.5
@@ -305,32 +347,8 @@ def legalize_placement(G: nx.DiGraph, raw_pos: Dict[str, Tuple[float, float, flo
                 total_cost += abs(ux - vx) + abs(uy - vy) + abs(uz - vz)
         return total_cost
         
-    # Pre-calculate spiral offsets once
-    print("Generating spiral offsets cache...")
-    spiral_offsets_cache = []
-    pq = [(0.0, 0.0, 0, 0, 0)]
-    visited_offsets = {(0, 0, 0)}
-    Y_PENALTY = 40.0
-    MAX_OFFSETS = 1000000 # Limit search space
-    
-    while pq and len(spiral_offsets_cache) < MAX_OFFSETS:
-        cost, _, dx, dy, dz = heapq.heappop(pq)
-        spiral_offsets_cache.append((dx, dy, dz))
-        
-        # Step by 2 to stay on 2x2x2 grid
-        step = 2
-        for next_x, next_y, next_z in [
-            (dx+step, dy, dz), (dx-step, dy, dz),
-            (dx, dy+step, dz), (dx, dy-step, dz),
-            (dx, dy, dz+step), (dx, dy, dz-step)
-        ]:
-            if (next_x, next_y, next_z) not in visited_offsets:
-                visited_offsets.add((next_x, next_y, next_z))
-                effective_y_penalty = Y_PENALTY * abs(next_y) / (abs(next_x) + abs(next_z) + 1)
-                effective_y_penalty = max(effective_y_penalty, 2.0)
-                #effective_y_penalty = Y_PENALTY
-                new_cost = next_x*next_x + effective_y_penalty * next_y*next_y + next_z*next_z
-                heapq.heappush(pq, (new_cost, random.random(), next_x, next_y, next_z))
+    # Get cached spiral offsets
+    spiral_offsets_cache = _get_spiral_offsets()
 
     # Run multiple phases with decreasing padding
     current_pos = raw_pos.copy()  # Track legalized positions for neighbor corrections
