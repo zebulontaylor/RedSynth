@@ -8,6 +8,32 @@ import networkx as nx
 def clamp(x, min_val, max_val):
     return max(min_val, min(x, max_val))
 
+# Pre-computed direction constants
+CARDINAL_DIRECTIONS = ((1, 0, 0), (-1, 0, 0), (0, 0, 1), (0, 0, -1))
+SLOPE_DIRECTIONS = ((2, 1, 0), (2, -1, 0), (-2, 1, 0), (-2, -1, 0),
+                    (0, 1, 2), (0, -1, 2), (0, 1, -2), (0, -1, -2))
+SLOPE_MIDPOINTS = {
+    direction: ((direction[0] // 2, 0, direction[2] // 2),
+                (direction[0] // 2, direction[1], direction[2] // 2))
+    for direction in SLOPE_DIRECTIONS
+}
+SLOPE_FOOTPRINT_REL = {
+    direction: ((0, 0, 0),
+                SLOPE_MIDPOINTS[direction][0],
+                SLOPE_MIDPOINTS[direction][1],
+                direction)
+    for direction in SLOPE_DIRECTIONS
+}
+
+# Pre-compute all neighbor deltas with metadata
+ALL_NEIGHBOR_DELTAS = []
+for dx, dy, dz in CARDINAL_DIRECTIONS:
+    ALL_NEIGHBOR_DELTAS.append((dx, dy, dz, 1.0, False, None, None))  # (dx, dy, dz, cost, is_slope, mid_start_rel, mid_end_rel)
+for direction in SLOPE_DIRECTIONS:
+    dx, dy, dz = direction
+    mid_start_rel, mid_end_rel = SLOPE_MIDPOINTS[direction]
+    ALL_NEIGHBOR_DELTAS.append((dx, dy, dz, 2.5, True, mid_start_rel, mid_end_rel))
+
 class RoutingGrid:
     def __init__(self, positions: Dict[str, Tuple[float, float, float]], nodes_data: Dict[str, dict]):
         self.positions = positions
@@ -66,7 +92,7 @@ class RoutingGrid:
                         self.node_to_coords[name].add(coord)
 
     def _is_cardinal(self, vec):
-        return sum(1 for v in vec if v != 0) == 1
+        return (vec[0] != 0) + (vec[1] != 0) + (vec[2] != 0) == 1
 
     def _is_perpendicular(self, v1, v2):
         return v1[0]*v2[0] + v1[1]*v2[1] + v1[2]*v2[2] == 0
@@ -88,10 +114,10 @@ class RoutingGrid:
         return self.node_to_coords.get(node_name, set())
 
     def get_segment_footprint(self, p1, p2):
-        """Returns the set of coordinates occupied by the segment from p1 to p2."""
-        footprint = set()
-        footprint.add(p1)
-        footprint.add(p2)
+        """Returns the coordinates occupied by the segment from p1 to p2."""
+        footprint = [p1]
+        if p2 != p1:
+            footprint.append(p2)
         
         x, y, z = p1
         nx, ny, nz = p2
@@ -101,14 +127,17 @@ class RoutingGrid:
 
         # Vertical claim logic for diagonals
         # Claim the horizontal midpoint at both the start and end Y levels
-        if abs(dy) > 0:
+        if dy != 0:
             mx = x + dx // 2
             mz = z + dz // 2
-            # Claim at start Y level and end Y level
-            footprint.add((mx, y, mz))
-            footprint.add((mx, ny, mz))
+            mid_start = (mx, y, mz)
+            if mid_start not in footprint:
+                footprint.append(mid_start)
+            mid_end = (mx, ny, mz)
+            if mid_end not in footprint:
+                footprint.append(mid_end)
         
-        return footprint
+        return tuple(footprint)
 
     def add_path(self, path, net_name):
         for i in range(len(path)):
@@ -171,196 +200,182 @@ class RoutingGrid:
                             del self.wire_occupancy[fp]
                             self.blocked_coords.discard(fp)
 
-    def get_neighbors(self, point, allowed_points=None, forceful=False, prev_footprint=None, penalty_points=None, start_point=None, goal_point=None, prev_direction=None):
+    def get_neighbors(self, point, allowed_points=None, forceful=False, penalty_points=None, start_point=None, goal_point=None, prev_direction=None):
         x, y, z = point
-        
-        # New Move Set: Cardinals + Diagonals
-        moves = []
-        
-        # Cardinals (Cost 1.0)
-        cardinals = [
-            (1, 0, 0), (-1, 0, 0),
-            (0, 0, 1), (0, 0, -1)
-        ]
-        for dx, dy, dz in cardinals:
-            moves.append(((x+dx, y+dy, z+dz), 1.0))
-            
-        # Diagonals (Cost 1.414)
-        # We only allow diagonals that change 2 coordinates (planar diagonals)
-        # For redstone, usually we care about:
-        # - Up/Down + Horizontal (Staircase) -> dy != 0 and (dx != 0 or dz != 0)
-        slopes = [
-            (2, 1, 0), (2, -1, 0),
-            (-2, 1, 0), (-2, -1, 0),
-            (0, 1, 2), (0, -1, 2),
-            (0, 1, -2), (0, -1, -2)
-        ]
-
-        for dx, dy, dz in slopes:
-            moves.append(((x+dx, y+dy, z+dz), 2.5))
-
-        valid = []
         min_x, min_y, min_z = self.min_coords
         max_x, max_y, max_z = self.max_coords
-        
-        # Check if current point is at a wire intersection (crossed another wire perpendicularly)
+
+        blocked_coords = self.blocked_coords
+        wire_directions = self.wire_directions
+        wire_occupancy = self.wire_occupancy
+        node_occupancy = self.node_occupancy
+
+        blocked_contains = blocked_coords.__contains__
+        node_contains = node_occupancy.__contains__
+        get_dirs = wire_directions.get
+        get_wire_occupancy = wire_occupancy.get
+
+        allowed_lookup = allowed_points.__contains__ if allowed_points else None
+        penalty_lookup = penalty_points.__contains__ if penalty_points else None
+
+        is_cardinal = self._is_cardinal
+        is_perpendicular = self._is_perpendicular
+        abs_fn = abs
+
+        up_dirs = get_dirs((x, y + 1, z))
+        down_dirs = get_dirs((x, y - 1, z))
+        current_dirs = get_dirs(point) or ()
+
         at_intersection = False
-        if prev_direction is not None and self._is_cardinal(prev_direction) and prev_direction[1] == 0:
-            # We arrived with a horizontal cardinal move
-            if (x, y, z) in self.wire_directions:
-                for d in self.wire_directions[(x, y, z)]:
-                    # Check if there's a horizontal cardinal direction perpendicular to how we arrived
-                    if self._is_cardinal(d) and d[1] == 0 and self._is_perpendicular(d, prev_direction):
-                        at_intersection = True
-                        break
-        
-        for (nx, ny, nz), cost in moves:
-            if (min_x <= nx <= max_x and
-                min_y <= ny <= max_y and
-                min_z <= nz <= max_z):
-                
-                # Check destination
-                if self.is_blocked((nx, ny, nz), allowed_points, forceful):
-                    # Check for valid crossing
-                    can_cross = False
-                    if not forceful:
-                        # Only allow crossing if blocked by WIRE, not NODE
-                        if (nx, ny, nz) not in self.node_occupancy:
-                             move_vec = (nx - x, ny - y, nz - z)
-                             if self._is_cardinal(move_vec) and move_vec[1] == 0:
-                                # Check if we can cross INTO destination (perpendicular to dest wires)
-                                if (nx, ny, nz) in self.wire_directions:
-                                    existing_dirs = self.wire_directions[(nx, ny, nz)]
-                                    # Must be perpendicular to ALL existing directions at this point
-                                    # This also ensures no downward slopes at crossing
-                                    if existing_dirs and all((self._is_cardinal(d) or d[1] > 0) and self._is_perpendicular(d, move_vec) for d in existing_dirs):
-                                        can_cross = True    
-                                 
-                                # Also allow crossing if we're EXITING perpendicular from current point
-                                # This handles the case where we're at a port that another wire crosses through
-                                if not can_cross and (x, y, z) in self.wire_directions:
-                                    src_dirs = self.wire_directions[(x, y, z)]
-                                    if src_dirs and all(self._is_cardinal(d) and self._is_perpendicular(d, move_vec) for d in src_dirs):
-                                        can_cross = True
-                    
-                    if not can_cross:
-                        continue
-                
-                # Check vertical claims for diagonals
-                dy = ny - y
-                dx = nx - x
-                dz = nz - z
-                
-                # Don't allow downward slope moves from intersection points
-                if dy < 0 and at_intersection:
+        if prev_direction and is_cardinal(prev_direction) and prev_direction[1] == 0 and current_dirs:
+            for d in current_dirs:
+                if d[1] == 0 and is_cardinal(d) and is_perpendicular(d, prev_direction):
+                    at_intersection = True
+                    break
+
+        def point_blocked(pt):
+            if not blocked_contains(pt):
+                return False
+            if allowed_lookup and allowed_lookup(pt):
+                return False
+            if forceful and not node_contains(pt):
+                return False
+            return True
+
+        def bulldoze_penalty(points, nets):
+            if not nets:
+                return 0.0
+            has_slope_contact = False
+            near_endpoint = False
+            for bp in points:
+                dirs = get_dirs(bp)
+                if dirs and not has_slope_contact:
+                    for d in dirs:
+                        if d[1] != 0:
+                            has_slope_contact = True
+                            break
+                if not near_endpoint and start_point:
+                    if abs_fn(bp[0] - start_point[0]) + abs_fn(bp[1] - start_point[1]) + abs_fn(bp[2] - start_point[2]) <= 2:
+                        near_endpoint = True
+                if not near_endpoint and goal_point:
+                    if abs_fn(bp[0] - goal_point[0]) + abs_fn(bp[1] - goal_point[1]) + abs_fn(bp[2] - goal_point[2]) <= 2:
+                        near_endpoint = True
+                if has_slope_contact and near_endpoint:
+                    break
+            base = 400.0
+            if has_slope_contact:
+                base *= 0.5
+            if near_endpoint:
+                base *= 0.1
+            return base * len(nets)
+
+        valid = []
+        append_neighbor = valid.append
+
+        fast_path = not forceful and penalty_lookup is None
+
+        for dx, dy, dz, base_cost, is_slope, mid_start_rel, mid_end_rel in ALL_NEIGHBOR_DELTAS:
+            nx, ny, nz = x + dx, y + dy, z + dz
+
+            if not (min_x <= nx <= max_x and min_y <= ny <= max_y and min_z <= nz <= max_z):
+                continue
+
+            if dy < 0 and at_intersection:
+                continue
+
+            target = (nx, ny, nz)
+            move_vec = (dx, dy, dz)
+
+            blocked_target = point_blocked(target)
+            if blocked_target:
+                if node_contains(target):
                     continue
-                
-                if dy != 0:
-                    # For slopes, we claim the horizontal midpoint at both start and end Y levels.
-                    # Check both positions for blocking.
-                    mx = x + dx // 2
-                    mz = z + dz // 2
-                    mid_at_start_y = (mx, y, mz)
-                    mid_at_end_y = (mx, ny, mz)
-                    
-                    move_vec = (dx, dy, dz)
-                    
-                    # Check midpoint at start Y level
-                    if self.is_blocked(mid_at_start_y, allowed_points, forceful):
-                        # Allow if blocked by same-direction wire (parallel stacking)
-                        is_compatible = False
-                        if not forceful and mid_at_start_y in self.wire_directions:
-                            if move_vec in self.wire_directions[mid_at_start_y]:
-                                is_compatible = True
-                        if not is_compatible:
+                if fast_path or not forceful:
+                    dest_dirs = get_dirs(target)
+                    if not (dest_dirs and all((is_cardinal(d) or d[1] > 0) and is_perpendicular(d, move_vec) for d in dest_dirs)):
+                        if not (current_dirs and all(is_cardinal(d) and is_perpendicular(d, move_vec) for d in current_dirs)):
                             continue
-                    
-                    # Check midpoint at end Y level
-                    if self.is_blocked(mid_at_end_y, allowed_points, forceful):
-                        # Allow if blocked by same-direction wire (parallel stacking)
-                        is_compatible = False
-                        if not forceful and mid_at_end_y in self.wire_directions:
-                            if move_vec in self.wire_directions[mid_at_end_y]:
-                                is_compatible = True
-                        if not is_compatible:
+
+            if is_slope:
+                mid_start = (x + mid_start_rel[0], y + mid_start_rel[1], z + mid_start_rel[2])
+                if point_blocked(mid_start):
+                    if not forceful:
+                        mid_dirs_start = get_dirs(mid_start)
+                        if not (mid_dirs_start and move_vec in mid_dirs_start):
                             continue
-                
-                # Apply penalty for bulldozing - count ALL unique nets in footprint
-                final_cost = cost
-                if forceful:
-                    bulldozed_nets = set()
-                    bulldozed_points = set()  # Track which points each net is bulldozed at
-                    # Check destination
-                    if (nx, ny, nz) in self.wire_occupancy:
-                        bulldozed_nets.update(self.wire_occupancy[(nx, ny, nz)])
-                        bulldozed_points.add((nx, ny, nz))
-                    # Check full footprint for slope moves
-                    if dy != 0:
-                        footprint = self.get_segment_footprint((x, y, z), (nx, ny, nz))
-                        for fp in footprint:
-                            if fp in self.wire_occupancy:
-                                bulldozed_nets.update(self.wire_occupancy[fp])
-                                bulldozed_points.add(fp)
-                    
-                    # Calculate penalty - reduce for sloped wires and wires near endpoints
-                    for net in bulldozed_nets:
-                        is_sloped = False
-                        is_near_endpoint = False
-                        for bp in bulldozed_points:
-                            if bp in self.wire_directions:
-                                for d in self.wire_directions[bp]:
-                                    if d[1] != 0:  # Has vertical component = sloped
-                                        is_sloped = True
-                                        break
-                            # Check if within 1 block of start or goal
-                            if start_point:
-                                dist_to_start = abs(bp[0]-start_point[0]) + abs(bp[1]-start_point[1]) + abs(bp[2]-start_point[2])
-                                if dist_to_start <= 2:
-                                    is_near_endpoint = True
-                            if goal_point:
-                                dist_to_goal = abs(bp[0]-goal_point[0]) + abs(bp[1]-goal_point[1]) + abs(bp[2]-goal_point[2])
-                                if dist_to_goal <= 2:
-                                    is_near_endpoint = True
-                        
-                        # Base penalty 400, halved for slopes, halved again for near endpoints
-                        base_penalty = 400.0
-                        if is_sloped:
-                            base_penalty *= 0.5
-                        if is_near_endpoint:
-                            base_penalty *= 0.1
-                        final_cost += base_penalty
+                    else:
+                        pass  # allowed to bulldoze
 
-                # Apply penalty for differing from neighbors above/below
-                move_vec = (nx - x, ny - y, nz - z)
-                
-                # Check Up
-                up_pos = (x, y+1, z)
-                if up_pos in self.wire_directions:
-                     if move_vec not in self.wire_directions[up_pos]:
-                         final_cost += 0.1
-                         
-                # Check Down
-                down_pos = (x, y-1, z)
-                if down_pos in self.wire_directions:
-                     if move_vec not in self.wire_directions[down_pos]:
-                         final_cost += 0.1
+                mid_end = (x + mid_end_rel[0], y + mid_end_rel[1], z + mid_end_rel[2])
+                if point_blocked(mid_end):
+                    if not forceful:
+                        mid_dirs_end = get_dirs(mid_end)
+                        if not (mid_dirs_end and move_vec in mid_dirs_end):
+                            continue
+                    else:
+                        pass
 
-                # Apply penalty for traversing penalty points (node volumes)
-                if penalty_points and (nx, ny, nz) in penalty_points:
-                    final_cost += 800.0
+            cost = base_cost
 
-                valid.append(((nx, ny, nz), final_cost))
-                
+            if fast_path:
+                if up_dirs and move_vec not in up_dirs:
+                    cost += 0.1
+                if down_dirs and move_vec not in down_dirs:
+                    cost += 0.1
+                append_neighbor((target, cost))
+                continue
+
+            if forceful:
+                bulldozed_points = []
+                bulldozed_nets = set()
+
+                nets_at_target = get_wire_occupancy(target)
+                if nets_at_target:
+                    bulldozed_nets.update(nets_at_target)
+                    bulldozed_points.append(target)
+
+                if is_slope:
+                    for rel in SLOPE_FOOTPRINT_REL[move_vec]:
+                        fp = (x + rel[0], y + rel[1], z + rel[2])
+                        nets_here = get_wire_occupancy(fp)
+                        if nets_here:
+                            if fp not in bulldozed_points:
+                                bulldozed_points.append(fp)
+                            bulldozed_nets.update(nets_here)
+
+                if bulldozed_points:
+                    cost += bulldoze_penalty(bulldozed_points, bulldozed_nets)
+
+            up_dirs_local = up_dirs if up_dirs is not None else get_dirs((x, y + 1, z))
+            down_dirs_local = down_dirs if down_dirs is not None else get_dirs((x, y - 1, z))
+            if up_dirs_local and move_vec not in up_dirs_local:
+                cost += 0.1
+            if down_dirs_local and move_vec not in down_dirs_local:
+                cost += 0.1
+
+            if penalty_lookup and penalty_lookup(target):
+                cost += 800.0
+
+            append_neighbor((target, cost))
+
         return valid
 
 
 def a_star(start, goal, grid, allowed_points, max_steps=50_000, forceful=False, penalty_points=None, debug_goal=False, max_cost=None):
-    def h(p1, p2):
-        # Euclidean distance is better for 3D with diagonals
-        return abs(p1[0]-p2[0]) + 2*abs(p1[1]-p2[1]) + abs(p1[2]-p2[2])
+    gx, gy, gz = goal
+    
+    # More aggressive heuristic to guide search better
+    def h(p):
+        dx = abs(p[0] - gx)
+        dy = abs(p[1] - gy) 
+        dz = abs(p[2] - gz)
+        # Account for slope costs in heuristic (underestimate to stay admissible)
+        # Slopes cost 2.5 but move 2 units horizontally, so ~1.25 per unit
+        # Use slightly higher weight to guide search better while staying admissible
+        return max(dx, dz) + min(dx, dz) * 0.5 + dy * 2.0
         
     open_set = []
-    heapq.heappush(open_set, (h(start, goal), 0, start))
+    heapq.heappush(open_set, (h(start), 0, start))
     
     came_from = {}
     g_score = {start: 0}
@@ -368,7 +383,7 @@ def a_star(start, goal, grid, allowed_points, max_steps=50_000, forceful=False, 
     
     # Track closest point for diagnostics
     closest_point = start
-    closest_distance = h(start, goal)
+    closest_distance = h(start)
     
     # Debug: track if goal was ever seen as a neighbor
     goal_seen_as_neighbor = False
@@ -384,7 +399,7 @@ def a_star(start, goal, grid, allowed_points, max_steps=50_000, forceful=False, 
         steps += 1
         
         # Update closest point tracking
-        current_dist = h(current, goal)
+        current_dist = h(current)
         if current_dist < closest_distance:
             closest_distance = current_dist
             closest_point = current
@@ -410,14 +425,12 @@ def a_star(start, goal, grid, allowed_points, max_steps=50_000, forceful=False, 
             path.append(start)
             return path[::-1]
 
-        prev_footprint = None
         prev_direction = None
         if current in came_from:
             previous = came_from[current]
-            prev_footprint = grid.get_segment_footprint(previous, current)
             prev_direction = (current[0]-previous[0], current[1]-previous[1], current[2]-previous[2])
             
-        for neighbor, move_cost in grid.get_neighbors(current, allowed_points, forceful, prev_footprint, penalty_points, start, goal, prev_direction):
+        for neighbor, move_cost in grid.get_neighbors(current, allowed_points, forceful, penalty_points, start, goal, prev_direction):
             # Debug tracking
             if neighbor == goal:
                 goal_seen_as_neighbor = True
@@ -454,7 +467,7 @@ def a_star(start, goal, grid, allowed_points, max_steps=50_000, forceful=False, 
             if neighbor not in g_score or tentative_g < g_score[neighbor]:
                 came_from[neighbor] = current
                 g_score[neighbor] = tentative_g
-                f_score = tentative_g + h(neighbor, goal)
+                f_score = tentative_g + h(neighbor)
                 heapq.heappush(open_set, (f_score, tentative_g, neighbor))
                 if neighbor == goal:
                     goal_added_to_open = True
