@@ -1,5 +1,9 @@
 *.html
 __pycache__
-netlist*.json
 *.png
-routed*.json
+
+# Keeping these for easy reproduction
+#netlist*.json
+#routed*.json
+
+synth_*.v

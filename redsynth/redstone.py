@@ -161,7 +161,7 @@ def generate_redstone_grid(routed_paths: Dict[str, List[List[Tuple[int, int, int
         # Only do this pass along the x axis
         if len(net_dict.values()) > 1:
             #raise ValueError(f"Multiple nets at position {pos}")
-            print(f"Multiple nets at position {pos}")
+            print(f"Multiple nets at position {pos}: {net_dict}")
             continue
             
         pos_down = (pos[0], pos[1]-1, pos[2])

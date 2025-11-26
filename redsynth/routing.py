@@ -171,7 +171,7 @@ class RoutingGrid:
                             del self.wire_occupancy[fp]
                             self.blocked_coords.discard(fp)
 
-    def get_neighbors(self, point, allowed_points=None, forceful=False, prev_footprint=None, penalty_points=None, start_point=None, goal_point=None):
+    def get_neighbors(self, point, allowed_points=None, forceful=False, prev_footprint=None, penalty_points=None, start_point=None, goal_point=None, prev_direction=None):
         x, y, z = point
         
         # New Move Set: Cardinals + Diagonals
@@ -203,6 +203,17 @@ class RoutingGrid:
         min_x, min_y, min_z = self.min_coords
         max_x, max_y, max_z = self.max_coords
         
+        # Check if current point is at a wire intersection (crossed another wire perpendicularly)
+        at_intersection = False
+        if prev_direction is not None and self._is_cardinal(prev_direction) and prev_direction[1] == 0:
+            # We arrived with a horizontal cardinal move
+            if (x, y, z) in self.wire_directions:
+                for d in self.wire_directions[(x, y, z)]:
+                    # Check if there's a horizontal cardinal direction perpendicular to how we arrived
+                    if self._is_cardinal(d) and d[1] == 0 and self._is_perpendicular(d, prev_direction):
+                        at_intersection = True
+                        break
+        
         for (nx, ny, nz), cost in moves:
             if (min_x <= nx <= max_x and
                 min_y <= ny <= max_y and
@@ -217,23 +228,20 @@ class RoutingGrid:
                         if (nx, ny, nz) not in self.node_occupancy:
                              move_vec = (nx - x, ny - y, nz - z)
                              if self._is_cardinal(move_vec) and move_vec[1] == 0:
-                                 # Check if we can cross INTO destination (perpendicular to dest wires)
-                                 if (nx, ny, nz) in self.wire_directions:
-                                     existing_dirs = self.wire_directions[(nx, ny, nz)]
-                                     # Must be perpendicular to ALL existing directions at this point
-                                     if existing_dirs and all(self._is_cardinal(d) and self._is_perpendicular(d, move_vec) for d in existing_dirs):
-                                         can_cross = True
-                                 elif (nx, ny, nz) in self.wire_occupancy:
-                                     # Point has wire but no directions - it's a claimed point (port/footprint)
-                                     # Allow crossing since we can't determine direction conflicts
-                                     can_cross = True
+                                # Check if we can cross INTO destination (perpendicular to dest wires)
+                                if (nx, ny, nz) in self.wire_directions:
+                                    existing_dirs = self.wire_directions[(nx, ny, nz)]
+                                    # Must be perpendicular to ALL existing directions at this point
+                                    # This also ensures no downward slopes at crossing
+                                    if existing_dirs and all((self._is_cardinal(d) or d[1] > 0) and self._is_perpendicular(d, move_vec) for d in existing_dirs):
+                                        can_cross = True    
                                  
-                                 # Also allow crossing if we're EXITING perpendicular from current point
-                                 # This handles the case where we're at a port that another wire crosses through
-                                 if not can_cross and (x, y, z) in self.wire_directions:
-                                     src_dirs = self.wire_directions[(x, y, z)]
-                                     if src_dirs and all(self._is_cardinal(d) and self._is_perpendicular(d, move_vec) for d in src_dirs):
-                                         can_cross = True
+                                # Also allow crossing if we're EXITING perpendicular from current point
+                                # This handles the case where we're at a port that another wire crosses through
+                                if not can_cross and (x, y, z) in self.wire_directions:
+                                    src_dirs = self.wire_directions[(x, y, z)]
+                                    if src_dirs and all(self._is_cardinal(d) and self._is_perpendicular(d, move_vec) for d in src_dirs):
+                                        can_cross = True
                     
                     if not can_cross:
                         continue
@@ -242,6 +250,11 @@ class RoutingGrid:
                 dy = ny - y
                 dx = nx - x
                 dz = nz - z
+                
+                # Don't allow downward slope moves from intersection points
+                if dy < 0 and at_intersection:
+                    continue
+                
                 if dy != 0:
                     # For slopes, we claim the horizontal midpoint at both start and end Y levels.
                     # Check both positions for blocking.
@@ -404,7 +417,7 @@ def a_star(start, goal, grid, allowed_points, max_steps=50_000, forceful=False, 
             prev_footprint = grid.get_segment_footprint(previous, current)
             prev_direction = (current[0]-previous[0], current[1]-previous[1], current[2]-previous[2])
             
-        for neighbor, move_cost in grid.get_neighbors(current, allowed_points, forceful, prev_footprint, penalty_points, start, goal):
+        for neighbor, move_cost in grid.get_neighbors(current, allowed_points, forceful, prev_footprint, penalty_points, start, goal, prev_direction):
             # Debug tracking
             if neighbor == goal:
                 goal_seen_as_neighbor = True

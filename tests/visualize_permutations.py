@@ -553,6 +553,139 @@ def create_test_cases() -> Dict[str, List[List[Tuple[int, int, int]]]]:
                                               "+X", "+Z", "-X", "+Z", "+X", "+Z", "-X", "+Z"])
     routed_paths["decay_serpentine_32_blocks"] = [path_multi]
 
+    # ========================================
+    # Section 17: WEIRD SELF-INTERSECTIONS
+    # Tests where a single net crosses or nearly touches itself
+    # ========================================
+    base_z = section_spacing * 16
+    
+    # ---- Figure-8 Pattern ----
+    # Wire crosses itself in the middle forming a figure-8
+    start_fig8 = (base_x, base_y, base_z)
+    path_fig8 = generate_path(start_fig8, ["+X", "+X", "+Z", "+Z", "-X", "-X", "-X", "-X",
+                                            "-Z", "-Z", "+X", "+X"])
+    routed_paths["weird_figure_8"] = [path_fig8]
+    
+    # ---- Loop Back Crossing ----
+    # Wire goes forward, turns, and crosses back over itself
+    start_loop = (base_x + 40, base_y, base_z + 4)
+    path_loop = generate_path(start_loop, ["+X", "+X", "+X", "+Z", "+Z", "-X", "-X", "-X", 
+                                            "-X", "-X", "-Z", "-Z", "+X"])
+    routed_paths["weird_loop_back_cross"] = [path_loop]
+    
+    # ---- Spiral Inward ----
+    # Wire spirals inward and crosses previous segments
+    start_spiral_in = (base_x + 80, base_y, base_z)
+    path_spiral_in = generate_path(start_spiral_in, ["+X", "+X", "+X", "+X", "+Z", "+Z", "+Z", "+Z",
+                                                      "-X", "-X", "-X", "-Z", "-Z", "+X"])
+    routed_paths["weird_spiral_inward"] = [path_spiral_in]
+    
+    # ---- U-Turn Very Close ----
+    # Wire makes tight U-turn, running parallel very close to itself
+    start_uturn = (base_x, base_y, base_z + 30)
+    path_uturn = generate_path(start_uturn, ["+X", "+X", "+X", "+X", "+Z", "-X", "-X", "-X", "-X"])
+    routed_paths["weird_uturn_close"] = [path_uturn]
+    
+    # ---- Cross at Different Y Levels ----
+    # Wire goes up, over, and would cross itself if Y levels matched
+    start_ycross = (base_x + 40, base_y, base_z + 30)
+    path_ycross = generate_path(start_ycross, ["+X", "+X", "+X+Y", "+X+Y", "+Z", "+Z", 
+                                                "-X-Y", "-X-Y", "-X", "-X", "-Z", "-Z"])
+    routed_paths["weird_cross_diff_y"] = [path_ycross]
+    
+    # ---- 3D Helix Self-Cross ----
+    # Wire makes a 3D helix pattern that crosses over itself
+    start_helix = (base_x + 90, base_y, base_z + 30)
+    path_helix = generate_path(start_helix, ["+X+Y", "+Z", "+Z", "-X+Y", "-Z", "-Z", 
+                                              "+X+Y", "+Z", "+Z", "-X-Y", "-Z"])
+    routed_paths["weird_helix_self_cross"] = [path_helix]
+    
+    # ---- Box Pattern (Near-Closed Loop) ----
+    # Wire forms a rectangular box, ending very close to start
+    start_box = (base_x, base_y, base_z + 55)
+    path_box = generate_path(start_box, ["+X", "+X", "+X", "+X", "+Z", "+Z", "+Z", "+Z",
+                                          "-X", "-X", "-X", "-X", "-Z", "-Z", "-Z"])
+    routed_paths["weird_box_near_closed"] = [path_box]
+    
+    # ---- Multiple Self-Crossings ----
+    # Wire that crosses itself at multiple points
+    start_multi_cross = (base_x + 50, base_y, base_z + 55)
+    path_multi_cross = generate_path(start_multi_cross, ["+X", "+X", "+Z", "+Z", "-X", "-X",
+                                                          "+Z", "+Z", "+X", "+X", "-Z", "-Z",
+                                                          "-X", "-X", "-Z", "-Z", "+X"])
+    routed_paths["weird_multi_self_cross"] = [path_multi_cross]
+    
+    # ---- Stacked Loop (Up and Back) ----
+    # Wire goes up, makes a loop, comes back down near original path
+    start_stacked = (base_x + 100, base_y, base_z + 55)
+    path_stacked = generate_path(start_stacked, ["+X+Y", "+X+Y", "+Z", "+Z", "-X-Y", "-X-Y", 
+                                                  "-Z", "-Z", "+X", "+X"])
+    routed_paths["weird_stacked_loop"] = [path_stacked]
+    
+    # ---- Overlapping Segments (Same Path Revisited) ----
+    # Wire goes forward, back, then forward again on same axis
+    start_overlap = (base_x, base_y, base_z + 80)
+    path_overlap = generate_path(start_overlap, ["+X", "+X", "+X", "-X", "-X", "+X", "+X", "+X", "+X"])
+    routed_paths["weird_overlap_revisit"] = [path_overlap]
+    
+    # ---- Tight Zigzag Self-Touch ----
+    # Very tight zigzag where segments nearly touch
+    start_tight_zig = (base_x + 40, base_y, base_z + 80)
+    path_tight_zig = generate_path(start_tight_zig, ["+X", "+Z", "+X", "-Z", "+X", "+Z", 
+                                                      "+X", "-Z", "+X", "+Z"])
+    routed_paths["weird_tight_zigzag"] = [path_tight_zig]
+    
+    # ---- Knot Pattern ----
+    # Complex pattern resembling a knot with multiple crossings at different Y
+    start_knot = (base_x + 90, base_y, base_z + 80)
+    path_knot = generate_path(start_knot, ["+X+Y", "+X+Y", "+Z", "-X-Y", "-X-Y", "-Z", "-Z",
+                                            "+X+Y", "+X+Y", "+Z", "+Z", "-X", "-X"])
+    routed_paths["weird_knot_pattern"] = [path_knot]
+    
+    # ---- Complete Loop (Closed Circuit) ----
+    # Wire that forms a complete closed loop (ends at start)
+    start_closed = (base_x, base_y, base_z + 105)
+    path_closed = generate_path(start_closed, ["+X", "+X", "+Z", "+Z", "-X", "-X", "-Z", "-Z"])
+    routed_paths["weird_closed_loop"] = [path_closed]
+    
+    # ---- Staircase Loop ----
+    # Goes up stairs, around, then down stairs to form loop at different Y
+    start_stair_loop = (base_x + 40, base_y, base_z + 105)
+    path_stair_loop = generate_path(start_stair_loop, ["+X+Y", "+X+Y", "+X+Y", "+Z", "+Z",
+                                                        "-X-Y", "-X-Y", "-X-Y", "-Z", "-Z"])
+    routed_paths["weird_staircase_loop"] = [path_stair_loop]
+    
+    # ---- Pretzel Pattern ----
+    # Complex interweaving pattern like a pretzel
+    start_pretzel = (base_x + 100, base_y, base_z + 105)
+    path_pretzel = generate_path(start_pretzel, ["+X", "+Z+Y", "+X", "-Z-Y", "+X", "+Z+Y",
+                                                  "-X", "-Z-Y", "-X", "+Z", "-X", "-Z"])
+    routed_paths["weird_pretzel"] = [path_pretzel]
+    
+    # ---- Double Spiral ----
+    # Two loops of a spiral that cross when viewed from above
+    start_dbl_spiral = (base_x, base_y, base_z + 135)
+    path_dbl_spiral = generate_path(start_dbl_spiral, ["+X", "+X", "+X", "+Z", "+Z", "+Z",
+                                                        "-X", "-X", "-X", "-Z", "-Z",
+                                                        "+X+Y", "+X+Y", "+Z", "+Z",
+                                                        "-X-Y", "-X-Y", "-Z"])
+    routed_paths["weird_double_spiral"] = [path_dbl_spiral]
+    
+    # ---- Crossing Slopes ----
+    # Slope segments that cross at different heights
+    start_cross_slope = (base_x + 60, base_y, base_z + 135)
+    path_cross_slope = generate_path(start_cross_slope, ["+X+Y", "+X+Y", "+Z", "+Z", "+Z", "+Z",
+                                                          "-X-Y", "-X-Y", "-Z", "-Z"])
+    routed_paths["weird_crossing_slopes"] = [path_cross_slope]
+    
+    # ---- Tunnel Under Self ----
+    # Wire goes up and over, creating a tunnel it could pass under
+    start_tunnel = (base_x + 120, base_y, base_z + 135)
+    path_tunnel = generate_path(start_tunnel, ["+X", "+X", "+X+Y", "+X+Y", "+X+Y", 
+                                                "-Z", "-Z", "-X-Y", "-X-Y", "-X-Y",
+                                                "-X", "-X", "+Z", "+Z", "+Z", "+Z"])
+    routed_paths["weird_tunnel_under"] = [path_tunnel]
+
     return routed_paths
 
 
@@ -692,6 +825,12 @@ def create_visualization(routed_paths: Dict[str, List[List[Tuple[int, int, int]]
         ((60, 10, 580), "🔁 SIGNAL DECAY - Mixed Types"),
         ((60, 10, 610), "🔁 SIGNAL DECAY - Very Long Wires"),
         ((180, 10, 610), "🔁 SIGNAL DECAY - Edge Cases"),
+        # Weird self-intersection tests (section 17 at Z=480)
+        ((60, 10, 480), "🔀 WEIRD - Figure-8 & Loop Patterns"),
+        ((60, 10, 510), "🔀 WEIRD - U-Turn & Box Patterns"),
+        ((60, 10, 535), "🔀 WEIRD - Multiple Crossings"),
+        ((60, 10, 560), "🔀 WEIRD - Closed Loops & Staircases"),
+        ((60, 10, 590), "🔀 WEIRD - Complex Patterns"),
     ]
     
     label_x = [l[0][0] for l in labels]
