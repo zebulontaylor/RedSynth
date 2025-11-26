@@ -249,7 +249,9 @@ def visualize_graph_interactive(G: nx.DiGraph, positions: Dict[str, Tuple[float,
             blocks_by_type[block_type].append(coord)
             
         for block_type, coords in blocks_by_type.items():
-            style = BLOCK_STYLES.get(block_type, BLOCK_STYLES["default"])
+            # Handle directional blocks (e.g. "repeater:+x")
+            base_type = block_type.split(':')[0]
+            style = BLOCK_STYLES.get(base_type, BLOCK_STYLES["default"])
             
             # We'll use Mesh3d for blocks as well
             b_x, b_y, b_z = [], [], []

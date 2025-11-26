@@ -2,3 +2,4 @@
 __pycache__
 netlist*.json
 *.png
+routed*.json

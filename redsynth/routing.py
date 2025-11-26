@@ -100,17 +100,13 @@ class RoutingGrid:
         dz = nz - z
 
         # Vertical claim logic for diagonals
+        # Claim the horizontal midpoint at both the start and end Y levels
         if abs(dy) > 0:
             mx = x + dx // 2
-            my = y + dy // 2
             mz = z + dz // 2
-            footprint.add((mx, my, mz))
-            if dy > 0:
-                # Upward move: claim voxel above start
-                footprint.add((mx, my + 1, mz))
-            else:
-                # Downward move: claim voxel below start
-                footprint.add((mx, my - 1, mz))
+            # Claim at start Y level and end Y level
+            footprint.add((mx, y, mz))
+            footprint.add((mx, ny, mz))
         
         return footprint
 
@@ -247,21 +243,32 @@ class RoutingGrid:
                 dx = nx - x
                 dz = nz - z
                 if dy != 0:
-                    # If moving vertically, we must claim the space directly above/below the start
-                    # to prevent cutting corners.
-                    check_pos = (x, y + (1 if dy > 0 else -1), z)
-                    mid_pos = (x + dx // 2, y, z + dz // 2)
-                    if self.is_blocked(mid_pos, allowed_points, forceful):
-                        continue
-
-                    if self.is_blocked(check_pos, allowed_points, forceful):
-                        # Allow if the blocking element is a wire moving in the same direction (parallel stack)
+                    # For slopes, we claim the horizontal midpoint at both start and end Y levels.
+                    # Check both positions for blocking.
+                    mx = x + dx // 2
+                    mz = z + dz // 2
+                    mid_at_start_y = (mx, y, mz)
+                    mid_at_end_y = (mx, ny, mz)
+                    
+                    move_vec = (dx, dy, dz)
+                    
+                    # Check midpoint at start Y level
+                    if self.is_blocked(mid_at_start_y, allowed_points, forceful):
+                        # Allow if blocked by same-direction wire (parallel stacking)
                         is_compatible = False
-                        if not forceful and check_pos in self.wire_directions:
-                            move_vec = (nx - x, ny - y, nz - z)
-                            if move_vec in self.wire_directions[check_pos]:
+                        if not forceful and mid_at_start_y in self.wire_directions:
+                            if move_vec in self.wire_directions[mid_at_start_y]:
                                 is_compatible = True
-                        
+                        if not is_compatible:
+                            continue
+                    
+                    # Check midpoint at end Y level
+                    if self.is_blocked(mid_at_end_y, allowed_points, forceful):
+                        # Allow if blocked by same-direction wire (parallel stacking)
+                        is_compatible = False
+                        if not forceful and mid_at_end_y in self.wire_directions:
+                            if move_vec in self.wire_directions[mid_at_end_y]:
+                                is_compatible = True
                         if not is_compatible:
                             continue
                 
@@ -327,7 +334,7 @@ class RoutingGrid:
 
                 # Apply penalty for traversing penalty points (node volumes)
                 if penalty_points and (nx, ny, nz) in penalty_points:
-                    final_cost += 50.0
+                    final_cost += 800.0
 
                 valid.append(((nx, ny, nz), final_cost))
                 
@@ -407,6 +414,26 @@ def a_star(start, goal, grid, allowed_points, max_steps=50_000, forceful=False, 
             new_direction = (neighbor[0]-current[0], neighbor[1]-current[1], neighbor[2]-current[2])
             if prev_direction is not None and new_direction != prev_direction:
                 penalty = 0.1
+            
+            # Check for illegal back moves with downward slopes
+            # cardinal-cardinal back is allowed, but if either move is a downward slope, back is illegal
+            if prev_direction is not None:
+                prev_dx, prev_dy, prev_dz = prev_direction
+                new_dx, new_dy, new_dz = new_direction
+                
+                # Check if moves go in opposite horizontal directions ("back")
+                is_back = False
+                if prev_dx != 0 and new_dx != 0 and (prev_dx > 0) != (new_dx > 0):
+                    is_back = True
+                if prev_dz != 0 and new_dz != 0 and (prev_dz > 0) != (new_dz > 0):
+                    is_back = True
+                
+                # If going back and at least one move is a downward slope, skip this neighbor
+                if is_back:
+                    prev_is_downslope = prev_dy < 0
+                    new_is_downslope = new_dy < 0
+                    if prev_is_downslope or new_is_downslope:
+                        continue
 
             tentative_g = current_g + move_cost + penalty
             
