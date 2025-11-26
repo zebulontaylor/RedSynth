@@ -1,109 +1,0 @@
-Parsing netlist.json...
-Building graph...
-Profiling optimize_placement...
-Starting force-directed placement (Spring Layout)...
-Running custom force-directed simulation with Y-penalty (Scale: 94)...
-Legalizing placement with 2 phases (padding: [24, 12])...
-Generating spiral offsets cache...
-Initial wire cost (from spring layout): 14993.2
-
-=== Phase 1/2 (padding=24) ===
-  Placing 0/111...  Placing 10/111...  Placing 20/111...  Placing 30/111...  Placing 40/111...  Placing 50/111...  Placing 60/111...  Placing 70/111...  Placing 80/111...  Placing 90/111...  Placing 100/111...  Placing 110/111...  Phase 1 complete. Total wire cost: 66648.0
-
-=== Phase 2/2 (padding=12) ===
-  Placing 0/111...  Placing 10/111...  Placing 20/111...  Placing 30/111...  Placing 40/111...  Placing 50/111...  Placing 60/111...  Placing 70/111...  Placing 80/111...  Placing 90/111...  Placing 100/111...  Placing 110/111...  Phase 2 complete. Total wire cost: 42386.0
-
-Placement complete (2 phases).
-Final wire cost: 42386.0 (started at 14993.2, -182.7% change)
-optimize_placement took 18.56 seconds
-         20094955 function calls (20088034 primitive calls) in 18.556 seconds
-
-   Ordered by: cumulative time
-   List reduced from 1313 to 20 due to restriction <20>
-
-   ncalls  tottime  percall  cumtime  percall filename:lineno(function)
-        1    0.000    0.000   18.556   18.556 /home/engine/project/redsynth/placement.py:545(optimize_placement)
-        1    1.976    1.976   11.292   11.292 /home/engine/project/redsynth/placement.py:107(calculate_spring_layout)
-        1    0.760    0.760    7.264    7.264 /home/engine/project/redsynth/placement.py:252(legalize_placement)
-   226000    0.508    0.000    5.954    0.000 /home/engine/project/.venv/lib/python3.12/site-packages/scipy/sparse/_index.py:29(__getitem__)
-  2055151    3.794    0.000    4.319    0.000 /home/engine/project/redsynth/placement.py:44(query)
-   226000    1.547    0.000    3.358    0.000 /home/engine/project/.venv/lib/python3.12/site-packages/scipy/sparse/_index.py:212(_validate_indices)
-        1    0.043    0.043    2.165    2.165 /home/engine/project/redsynth/placement.py:99(_get_spiral_offsets)
-        1    1.380    1.380    2.122    2.122 /home/engine/project/redsynth/placement.py:70(_generate_spiral_offsets)
-   234000    0.791    0.000    1.972    0.000 /home/engine/project/.venv/lib/python3.12/site-packages/numpy/linalg/_linalg.py:2623(norm)
-   226000    0.436    0.000    1.947    0.000 /home/engine/project/.venv/lib/python3.12/site-packages/scipy/sparse/_compressed.py:542(_get_intXint)
-      4/2    0.000    0.000    1.561    0.781 /home/engine/project/.venv/lib/python3.12/site-packages/networkx/utils/decorators.py:783(func)
-        1    0.000    0.000    1.288    1.288 <class 'networkx.utils.decorators.argmap'> compilation 8:1(argmap_spring_layout_5)
-   237004    1.265    0.000    1.265    0.000 {method 'reduce' of 'numpy.ufunc' objects}
-        1    0.001    0.001    1.263    1.263 /home/engine/project/.venv/lib/python3.12/site-packages/networkx/drawing/layout.py:451(spring_layout)
-        1    0.000    0.000    1.260    1.260 <class 'networkx.utils.decorators.argmap'> compilation 16:1(argmap__fruchterman_reingold_13)
-        1    0.466    0.466    1.260    1.260 /home/engine/project/.venv/lib/python3.12/site-packages/networkx/drawing/layout.py:659(_fruchterman_reingold)
-   905001    0.783    0.000    1.156    0.000 /home/engine/project/.venv/lib/python3.12/site-packages/scipy/sparse/_sputils.py:350(isintlike)
-   226000    0.813    0.000    0.813    0.000 {built-in method scipy.sparse._sparsetools.get_csr_submatrix}
-   226000    0.130    0.000    0.578    0.000 {method 'sum' of 'numpy.ndarray' objects}
-  2483180    0.526    0.000    0.526    0.000 {method 'get' of 'dict' objects}
-
-
-Profiling route_nets...
-Starting routing (Voxel Mode)...
-Building routing grid obstacles (Voxel Mode)...
-Validating pin spacing...
-Pre-claiming pin locations...
-  Reserved 1582 unique pin grid locations
-Prioritizing nets...
-430/430 nets left to route.429/430 nets left to route.428/430 nets left to route.427/430 nets left to route.426/430 nets left to route.425/430 nets left to route.424/430 nets left to route.423/430 nets left to route.422/430 nets left to route.421/430 nets left to route.420/430 nets left to route.419/430 nets left to route.418/430 nets left to route.417/430 nets left to route.416/430 nets left to route.415/430 nets left to route.414/430 nets left to route.413/430 nets left to route.412/430 nets left to route.411/430 nets left to route.410/430 nets left to route.409/430 nets left to route.408/430 nets left to route.407/430 nets left to route.406/430 nets left to route.405/430 nets left to route.404/430 nets left to route.403/430 nets left to route.402/430 nets left to route.401/430 nets left to route.400/430 nets left to route.399/430 nets left to route.398/430 nets left to route.397/430 nets left to route.396/430 nets left to route.395/430 nets left to route.394/430 nets left to route.393/430 nets left to route.392/430 nets left to route.391/430 nets left to route.390/430 nets left to route.389/430 nets left to route.388/430 nets left to route.387/430 nets left to route.386/430 nets left to route.385/430 nets left to route.384/430 nets left to route.383/430 nets left to route.382/430 nets left to route.381/430 nets left to route.380/430 nets left to route.379/430 nets left to route.378/430 nets left to route.377/430 nets left to route.376/430 nets left to route.375/430 nets left to route.374/430 nets left to route.373/430 nets left to route.372/430 nets left to route.371/430 nets left to route.370/430 nets left to route.369/430 nets left to route.368/430 nets left to route.367/430 nets left to route.366/430 nets left to route.365/430 nets left to route.364/430 nets left to route.363/430 nets left to route.362/430 nets left to route.361/430 nets left to route.360/430 nets left to route.359/430 nets left to route.358/430 nets left to route.357/430 nets left to route.356/430 nets left to route.355/430 nets left to route.354/430 nets left to route.353/430 nets left to route.352/430 nets left to route.351/430 nets left to route.350/430 nets left to route.349/430 nets left to route.348/430 nets left to route.347/430 nets left to route.346/430 nets left to route.345/430 nets left to route.344/430 nets left to route.343/430 nets left to route.342/430 nets left to route.341/430 nets left to route.340/430 nets left to route.339/430 nets left to route.338/430 nets left to route.337/430 nets left to route.336/430 nets left to route.335/430 nets left to route.334/430 nets left to route.333/430 nets left to route.332/430 nets left to route.331/430 nets left to route.330/430 nets left to route.329/430 nets left to route.328/430 nets left to route.327/430 nets left to route.326/430 nets left to route.325/430 nets left to route.324/430 nets left to route.323/430 nets left to route.322/430 nets left to route.321/430 nets left to route.320/430 nets left to route.319/430 nets left to route.318/430 nets left to route.317/430 nets left to route.316/430 nets left to route.315/430 nets left to route.314/430 nets left to route.313/430 nets left to route.312/430 nets left to route.311/430 nets left to route.310/430 nets left to route.309/430 nets left to route.308/430 nets left to route.307/430 nets left to route.306/430 nets left to route.305/430 nets left to route.304/430 nets left to route.303/430 nets left to route.302/430 nets left to route.301/430 nets left to route.300/430 nets left to route.299/430 nets left to route.298/430 nets left to route.297/430 nets left to route.296/430 nets left to route.295/430 nets left to route.294/430 nets left to route.293/430 nets left to route.292/430 nets left to route.291/430 nets left to route.290/430 nets left to route.289/430 nets left to route.288/430 nets left to route.287/430 nets left to route.286/430 nets left to route.285/430 nets left to route.284/430 nets left to route.283/430 nets left to route.282/430 nets left to route.281/430 nets left to route.280/430 nets left to route.279/430 nets left to route.278/430 nets left to route.277/430 nets left to route.276/430 nets left to route.275/430 nets left to route.274/430 nets left to route.273/430 nets left to route.272/430 nets left to route.271/430 nets left to route.270/430 nets left to route.269/430 nets left to route.268/430 nets left to route.267/430 nets left to route.266/430 nets left to route.265/430 nets left to route.264/430 nets left to route.263/430 nets left to route.262/430 nets left to route.261/430 nets left to route.260/430 nets left to route.259/430 nets left to route.258/430 nets left to route.257/430 nets left to route.256/430 nets left to route.255/430 nets left to route.254/430 nets left to route.253/430 nets left to route.252/430 nets left to route.251/430 nets left to route.250/430 nets left to route.249/430 nets left to route.248/430 nets left to route.247/430 nets left to route.246/430 nets left to route.245/430 nets left to route.244/430 nets left to route.243/430 nets left to route.242/430 nets left to route.241/430 nets left to route.240/430 nets left to route.239/430 nets left to route.238/430 nets left to route.237/430 nets left to route.236/430 nets left to route.235/430 nets left to route.234/430 nets left to route.233/430 nets left to route.232/430 nets left to route.231/430 nets left to route.230/430 nets left to route.229/430 nets left to route.228/430 nets left to route.227/430 nets left to route.226/430 nets left to route.225/430 nets left to route.224/430 nets left to route.223/430 nets left to route.222/430 nets left to route.221/430 nets left to route.220/430 nets left to route.219/430 nets left to route.218/430 nets left to route.217/430 nets left to route.216/430 nets left to route.215/430 nets left to route.214/430 nets left to route.213/430 nets left to route.212/430 nets left to route.211/430 nets left to route.210/430 nets left to route.209/430 nets left to route.208/430 nets left to route.207/430 nets left to route.206/430 nets left to route.205/430 nets left to route.204/430 nets left to route.203/430 nets left to route.202/430 nets left to route.201/430 nets left to route.200/430 nets left to route.199/430 nets left to route.198/430 nets left to route.197/430 nets left to route.196/430 nets left to route.195/430 nets left to route.194/430 nets left to route.193/430 nets left to route.192/430 nets left to route.191/430 nets left to route.190/430 nets left to route.189/430 nets left to route.188/430 nets left to route.187/430 nets left to route.186/430 nets left to route.185/430 nets left to route.184/430 nets left to route.183/430 nets left to route.182/430 nets left to route.181/430 nets left to route.180/430 nets left to route.179/430 nets left to route.178/430 nets left to route.177/430 nets left to route.176/430 nets left to route.175/430 nets left to route.174/430 nets left to route.173/430 nets left to route.172/430 nets left to route.171/430 nets left to route.170/430 nets left to route.169/430 nets left to route.168/430 nets left to route.167/430 nets left to route.166/430 nets left to route.165/430 nets left to route.164/430 nets left to route.163/430 nets left to route.162/430 nets left to route.161/430 nets left to route.160/430 nets left to route.159/430 nets left to route.158/430 nets left to route.157/430 nets left to route.156/430 nets left to route.155/430 nets left to route.154/430 nets left to route.153/430 nets left to route.152/430 nets left to route.151/430 nets left to route.150/430 nets left to route.149/430 nets left to route.148/430 nets left to route.147/430 nets left to route.146/430 nets left to route.145/430 nets left to route.144/430 nets left to route.143/430 nets left to route.142/430 nets left to route.141/430 nets left to route.  [Rip-up] Net net_61 ripping up: {'net_321', 'net_307', 'net_306'}
-143/430 nets left to route.142/430 nets left to route.141/430 nets left to route.140/430 nets left to route.139/430 nets left to route.138/430 nets left to route.137/430 nets left to route.136/430 nets left to route.135/430 nets left to route.134/430 nets left to route.133/430 nets left to route.132/430 nets left to route.131/430 nets left to route.130/430 nets left to route.129/430 nets left to route.128/430 nets left to route.127/430 nets left to route.126/430 nets left to route.125/430 nets left to route.124/430 nets left to route.123/430 nets left to route.122/430 nets left to route.121/430 nets left to route.120/430 nets left to route.119/430 nets left to route.118/430 nets left to route.117/430 nets left to route.116/430 nets left to route.115/430 nets left to route.114/430 nets left to route.113/430 nets left to route.112/430 nets left to route.111/430 nets left to route.110/430 nets left to route.109/430 nets left to route.108/430 nets left to route.107/430 nets left to route.106/430 nets left to route.105/430 nets left to route.104/430 nets left to route.103/430 nets left to route.102/430 nets left to route.101/430 nets left to route.100/430 nets left to route.99/430 nets left to route.98/430 nets left to route.97/430 nets left to route.96/430 nets left to route.95/430 nets left to route.  [Rip-up] Net net_36 ripping up: {'net_238', 'net_230', 'net_29'}
-97/430 nets left to route.96/430 nets left to route.95/430 nets left to route.94/430 nets left to route.93/430 nets left to route.92/430 nets left to route.91/430 nets left to route.90/430 nets left to route.  [Rip-up] Net net_48 ripping up: {'net_266', 'net_40'}
-91/430 nets left to route.90/430 nets left to route.89/430 nets left to route.88/430 nets left to route.  [Rip-up] Net net_49 ripping up: {'net_40', 'net_41', 'net_48'}
-89/430 nets left to route.88/430 nets left to route.87/430 nets left to route.86/430 nets left to route.85/430 nets left to route.84/430 nets left to route.83/430 nets left to route.82/430 nets left to route.81/430 nets left to route.80/430 nets left to route.79/430 nets left to route.78/430 nets left to route.77/430 nets left to route.76/430 nets left to route.75/430 nets left to route.74/430 nets left to route.73/430 nets left to route.  [Rip-up] Net net_110 ripping up: {'net_112'}
-73/430 nets left to route.72/430 nets left to route.71/430 nets left to route.70/430 nets left to route.69/430 nets left to route.68/430 nets left to route.67/430 nets left to route.66/430 nets left to route.65/430 nets left to route.64/430 nets left to route.63/430 nets left to route.62/430 nets left to route.61/430 nets left to route.60/430 nets left to route.59/430 nets left to route.58/430 nets left to route.57/430 nets left to route.56/430 nets left to route.55/430 nets left to route.54/430 nets left to route.53/430 nets left to route.52/430 nets left to route.51/430 nets left to route.50/430 nets left to route.49/430 nets left to route.48/430 nets left to route.47/430 nets left to route.46/430 nets left to route.45/430 nets left to route.44/430 nets left to route.43/430 nets left to route.42/430 nets left to route.41/430 nets left to route.40/430 nets left to route.39/430 nets left to route.38/430 nets left to route.37/430 nets left to route.36/430 nets left to route.35/430 nets left to route.34/430 nets left to route.33/430 nets left to route.32/430 nets left to route.31/430 nets left to route.30/430 nets left to route.29/430 nets left to route.28/430 nets left to route.27/430 nets left to route.26/430 nets left to route.25/430 nets left to route.24/430 nets left to route.23/430 nets left to route.22/430 nets left to route.21/430 nets left to route.20/430 nets left to route.19/430 nets left to route.18/430 nets left to route.17/430 nets left to route.16/430 nets left to route.  [Rip-up] Net net_151 ripping up: {'net_357', 'net_140', 'net_138', 'net_184'}
-19/430 nets left to route.18/430 nets left to route.17/430 nets left to route.  [Rip-up] Net net_26 ripping up: {'net_221', 'net_92', 'net_86'}
-19/430 nets left to route.18/430 nets left to route.17/430 nets left to route.16/430 nets left to route.15/430 nets left to route.14/430 nets left to route.13/430 nets left to route.12/430 nets left to route.11/430 nets left to route.  [Rip-up] Net net_40 ripping up: {'net_89'}
-  [Rip-up] Net net_40 ripping up: {'net_266'}
-  [Rip-up] Net net_40 ripping up: {'net_49', 'net_48', 'net_41', 'net_234', 'net_39'}
-  [Rip-up] Net net_40 ripping up: {'net_233', 'net_241', 'net_48', 'net_32', 'net_249', 'net_33'}
-20/430 nets left to route.  [Rip-up] Net net_41 ripping up: {'net_42'}
-  [Rip-up] Net net_41 ripping up: {'net_266', 'net_49', 'net_42', 'net_48'}
-  [Rip-up] Net net_41 ripping up: {'net_235', 'net_40', 'net_49', 'net_268'}
-23/430 nets left to route.  [Rip-up] Net net_48 ripping up: {'net_40', 'net_258', 'net_49'}
-  [Rip-up] Net net_48 ripping up: {'net_266', 'net_40'}
-  [Rip-up] Net net_48 ripping up: {'net_266', 'net_40', 'net_39'}
-  [Rip-up] Net net_48 ripping up: {'net_40'}
-23/430 nets left to route.  [Rip-up] Net net_112 ripping up: {'net_113'}
-  [Rip-up] Net net_112 ripping up: {'net_114', 'net_113', 'net_115'}
-25/430 nets left to route.  [Rip-up] Net net_357 ripping up: {'net_151', 'net_140', 'net_184'}
-25/430 nets left to route.  [Rip-up] Net net_140 ripping up: {'net_308', 'net_307', 'net_329'}
-27/430 nets left to route.  [Rip-up] Net net_138 ripping up: {'net_366'}
-  [Rip-up] Net net_138 ripping up: {'net_337'}
-28/430 nets left to route.Stopping routing after 60.0 seconds.
-
-Routing complete. Failed connections: 0/991
-route_nets took 63.48 seconds
-         98470389 function calls in 63.470 seconds
-
-   Ordered by: cumulative time
-   List reduced from 62 to 20 due to restriction <20>
-
-   ncalls  tottime  percall  cumtime  percall filename:lineno(function)
-        1    0.555    0.555   63.470   63.470 /home/engine/project/redsynth/routing.py:604(route_nets)
-     1019   12.233    0.012   62.560    0.061 /home/engine/project/redsynth/routing.py:358(a_star)
-  1209088   25.785    0.000   41.290    0.000 /home/engine/project/redsynth/routing.py:194(get_neighbors)
-  3060399    3.679    0.000    6.550    0.000 /home/engine/project/redsynth/routing.py:362(h)
- 29554049    5.773    0.000    6.252    0.000 /home/engine/project/redsynth/routing.py:220(point_blocked)
- 26126404    5.278    0.000    5.278    0.000 {method 'get' of 'dict' objects}
- 11918294    2.038    0.000    2.038    0.000 {method 'append' of 'list' objects}
-  1210097    1.940    0.000    1.940    0.000 {built-in method _heapq.heappop}
-   525375    0.319    0.000    1.393    0.000 {built-in method builtins.all}
-  9463260    1.095    0.000    1.095    0.000 {built-in method builtins.abs}
-  3060732    0.953    0.000    0.953    0.000 {built-in method builtins.max}
-   764178    0.652    0.000    0.906    0.000 /home/engine/project/redsynth/routing.py:282(<genexpr>)
-  3060732    0.853    0.000    0.853    0.000 {built-in method builtins.min}
-  1849283    0.542    0.000    0.542    0.000 {built-in method _heapq.heappush}
-  2698649    0.479    0.000    0.479    0.000 {method '__contains__' of 'set' objects}
-  2043194    0.478    0.000    0.478    0.000 /home/engine/project/redsynth/routing.py:85(_is_cardinal)
-    37387    0.135    0.000    0.220    0.000 /home/engine/project/redsynth/routing.py:229(bulldoze_penalty)
-   806691    0.192    0.000    0.192    0.000 /home/engine/project/redsynth/routing.py:88(_is_perpendicular)
-   171503    0.107    0.000    0.168    0.000 /home/engine/project/redsynth/routing.py:283(<genexpr>)
-        1    0.000    0.000    0.156    0.156 /home/engine/project/redsynth/routing.py:29(__init__)
-
-
