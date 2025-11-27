@@ -171,14 +171,40 @@ class RoutingGrid:
 
     def get_density_penalty(self, point):
         """Get density-based routing penalty for a grid point.
-        
-        Returns a value between 0.0 and 0.1, higher near dense component clusters.
+
+        Returns a value between 0.0 and roughly 0.9, higher near dense component clusters.
         """
-        chunk = (point[0] // self.chunk_size, 
-                 point[1] // self.chunk_size, 
+        chunk = (point[0] // self.chunk_size,
+                 point[1] // self.chunk_size,
                  point[2] // self.chunk_size)
         density = self.density_map.get(chunk, 0.0)
-        return 0.4 * density
+        return 0.9 * density
+
+    def get_congestion_penalty(self, point, net_name=None):
+        """Estimate dynamic congestion around a grid point based on routed wires."""
+        nets_here = self.wire_occupancy.get(point)
+        overlap = 0
+        if nets_here:
+            overlap = len(nets_here)
+            if net_name and net_name in nets_here:
+                overlap -= 1
+            if overlap < 0:
+                overlap = 0
+
+        penalty = 0.45 * overlap
+
+        for dy in (-1, 1):
+            neighbor = (point[0], point[1] + dy, point[2])
+            neighbor_nets = self.wire_occupancy.get(neighbor)
+            if not neighbor_nets:
+                continue
+            neighbor_overlap = len(neighbor_nets)
+            if net_name and net_name in neighbor_nets:
+                neighbor_overlap -= 1
+            if neighbor_overlap > 0:
+                penalty += 0.15
+
+        return penalty
 
     def _is_cardinal(self, vec):
         return (vec[0] != 0) + (vec[1] != 0) + (vec[2] != 0) == 1
@@ -310,6 +336,7 @@ class RoutingGrid:
         wire_directions = self.wire_directions
         wire_occupancy = self.wire_occupancy
         node_occupancy = self.node_occupancy
+        get_congestion_penalty = self.get_congestion_penalty
 
         blocked_contains = blocked_coords.__contains__
         node_contains = node_occupancy.__contains__
@@ -373,11 +400,11 @@ class RoutingGrid:
                         near_endpoint = True
                 if has_slope_contact and near_endpoint:
                     break
-            base = 400.0
+            base = 200.0
             if has_slope_contact:
-                base *= 0.5
+                base *= 0.6
             if near_endpoint:
-                base *= 0.1
+                base *= 0.15
             return base * len(nets)
 
         valid = []
@@ -396,6 +423,9 @@ class RoutingGrid:
 
             target = (nx, ny, nz)
             move_vec = (dx, dy, dz)
+            is_crossing = False
+            segment_density = 0.0
+            segment_congestion = 0.0
 
             blocked_target = point_blocked(target)
             if blocked_target:
@@ -414,6 +444,8 @@ class RoutingGrid:
                     if not (dest_dirs and all(is_perpendicular(d, move_vec) for d in dest_dirs)):
                         if not (current_dirs and all(is_perpendicular(d, move_vec) for d in current_dirs)):
                             continue
+                if not forceful:
+                    is_crossing = True
 
             if is_slope:
                 mid_start = (x + mid_start_rel[0], y + mid_start_rel[1], z + mid_start_rel[2])
@@ -430,6 +462,9 @@ class RoutingGrid:
                     else:
                         pass  # allowed to bulldoze
 
+                segment_density += self.get_density_penalty(mid_start)
+                segment_congestion += get_congestion_penalty(mid_start, net_name)
+
                 mid_end = (x + mid_end_rel[0], y + mid_end_rel[1], z + mid_end_rel[2])
                 if point_blocked(mid_end):
                     if not forceful:
@@ -444,17 +479,31 @@ class RoutingGrid:
                     else:
                         pass
 
+                segment_density += self.get_density_penalty(mid_end)
+                segment_congestion += get_congestion_penalty(mid_end, net_name)
+
             cost = base_cost
             
             # Density-based center avoidance penalty
             density_penalty = self.get_density_penalty(target)
             cost += density_penalty * (2 if dy != 0 else 1)
+            
+            # Congestion penalty based on routed wires
+            congestion_penalty = get_congestion_penalty(target, net_name)
+            cost += congestion_penalty
+
+            if segment_density:
+                cost += segment_density
+            if segment_congestion:
+                cost += 0.5 * segment_congestion
+            if is_crossing:
+                cost += 0.8
 
             if fast_path:
                 if up_dirs and move_vec not in up_dirs:
-                    cost += 0.2
+                    cost += 0.35
                 if down_dirs and move_vec not in down_dirs:
-                    cost += 0.2
+                    cost += 0.35
                 append_neighbor((target, cost))
                 continue
 
@@ -482,9 +531,9 @@ class RoutingGrid:
             up_dirs_local = up_dirs if up_dirs is not None else get_dirs((x, y + 1, z))
             down_dirs_local = down_dirs if down_dirs is not None else get_dirs((x, y - 1, z))
             if up_dirs_local and move_vec not in up_dirs_local:
-                cost += 0.1
+                cost += 0.25
             if down_dirs_local and move_vec not in down_dirs_local:
-                cost += 0.1
+                cost += 0.25
 
             if penalty_lookup and penalty_lookup(target):
                 cost += 800.0
@@ -497,15 +546,16 @@ class RoutingGrid:
 def a_star(start, goal, grid, allowed_points, max_steps=50_000, forceful=False, penalty_points=None, debug_goal=False, max_cost=None, net_name=None):
     gx, gy, gz = goal
     
-    # More aggressive heuristic to guide search better
+    # Improved heuristic aligned with slope/cardinal costs
     def h(p):
         dx = abs(p[0] - gx)
-        dy = abs(p[1] - gy) 
+        dy = abs(p[1] - gy)
         dz = abs(p[2] - gz)
-        # Account for slope costs in heuristic (underestimate to stay admissible)
-        # Slopes cost 2.5 but move 2 units horizontally, so ~1.25 per unit
-        # Use slightly higher weight to guide search better while staying admissible
-        return max(dx, dz) + min(dx, dz) * 0.5 + dy * 3.0
+
+        horizontal = dx + dz
+        slope_coverage = min(horizontal, dy * 2)
+        remaining_horizontal = horizontal - slope_coverage
+        return dy * 3.0 + remaining_horizontal
         
     open_set = []
     heapq.heappush(open_set, (h(start), 0, start))
@@ -572,10 +622,10 @@ def a_star(start, goal, grid, allowed_points, max_steps=50_000, forceful=False, 
             penalty = 0.0
             new_direction = (neighbor[0]-current[0], neighbor[1]-current[1], neighbor[2]-current[2])
             if prev_direction is not None and new_direction != prev_direction:
-                penalty = 0.1
+                # Higher turn penalty for better path quality
+                penalty = 0.4
             
-            # Check for illegal back moves with downward slopes
-            # cardinal-cardinal back is allowed, but if either move is a downward slope, back is illegal
+            # Check for illegal back moves
             if prev_direction is not None:
                 prev_dx, prev_dy, prev_dz = prev_direction
                 new_dx, new_dy, new_dz = new_direction
@@ -587,9 +637,12 @@ def a_star(start, goal, grid, allowed_points, max_steps=50_000, forceful=False, 
                 if prev_dz != 0 and new_dz != 0 and (prev_dz > 0) != (new_dz > 0):
                     is_back = True
                 
-                # If going back and at least one move is a downward slope, skip this neighbor
                 if is_back:
-                    continue
+                    prev_down = prev_dy < 0
+                    new_down = new_dy < 0
+                    if prev_down or new_down:
+                        continue
+                    penalty += 0.3
 
             tentative_g = current_g + move_cost + penalty
             
@@ -834,10 +887,19 @@ def route_nets(G: nx.DiGraph, positions: Dict[str, Tuple[float, float, float]], 
         is_priority = net_name in priority_set
         is_8b = _is_8b_net(net_name, net_data, nodes_data)
         length = _get_net_length(net_data, positions, nodes_data)
-        # Priority: priority_nets first, then 8b, then by length
-        # Sort key: (not is_priority, not is_8b, length)
-        # False < True, so priority nets come first
-        net_priorities.append((net_name, (not is_priority, not is_8b, length)))
+        fanout = len(net_data['sinks'])
+        
+        # Priority: priority_nets > high-fanout/8b > shorter nets > lower fanout
+        # Rationale: Failed nets get priority, then critical/wide buses, then shorter connections
+        # High fanout nets are harder to route so do them early while space is available
+        sort_key = (
+            not is_priority,
+            not is_8b,
+            -fanout if fanout > 3 else 0,
+            length,
+            fanout
+        )
+        net_priorities.append((net_name, sort_key))
     
     net_priorities.sort(key=lambda x: x[1])
     sorted_nets = [n[0] for n in net_priorities]
@@ -845,7 +907,7 @@ def route_nets(G: nx.DiGraph, positions: Dict[str, Tuple[float, float, float]], 
     # Queue of nets to route
     routing_queue = deque(sorted_nets)
     rip_up_counts = {net: 0 for net in nets}
-    MAX_RIP_UPS = 10
+    MAX_RIP_UPS = 12
     
     start_time = time.time()
     
@@ -918,14 +980,28 @@ def route_nets(G: nx.DiGraph, positions: Dict[str, Tuple[float, float, float]], 
         success = True
         
         while remaining_sinks:
-            best_dist = float('inf')
+            best_score = float('inf')
             best_pair = None
             
             for sp in remaining_sinks:
                 for tp in tree_points:
-                     dist = (tp[0]-sp[0])**2 + (tp[1]-sp[1])**2 + (tp[2]-sp[2])**2
-                     if dist < best_dist:
-                         best_dist = dist
+                     # Calculate base Manhattan distance
+                     dist = abs(tp[0]-sp[0]) + abs(tp[1]-sp[1]) + abs(tp[2]-sp[2])
+                     
+                     # Estimate congestion along the path
+                     mid_x = (tp[0] + sp[0]) // 2
+                     mid_y = (tp[1] + sp[1]) // 2
+                     mid_z = (tp[2] + sp[2]) // 2
+                     mid_point = (mid_x, mid_y, mid_z)
+                     congestion = grid.get_congestion_penalty(mid_point, net_name)
+                     density = grid.get_density_penalty(mid_point)
+                     driver_bias = abs(sp[0]-start_point[0]) + abs(sp[1]-start_point[1]) + abs(sp[2]-start_point[2])
+
+                     # Combined score: distance adjusted by congestion and reach priority
+                     score = dist + congestion * 5.0 + density * 3.0 - driver_bias * 0.2
+
+                     if score < best_score:
+                         best_score = score
                          best_pair = (tp, sp)
             
             if not best_pair:
@@ -964,7 +1040,7 @@ def route_nets(G: nx.DiGraph, positions: Dict[str, Tuple[float, float, float]], 
                 path = result
             
             if path is None and rip_up_counts[net_name] < MAX_RIP_UPS:
-                 result = a_star(start, end, grid, allowed_points, max_steps=100_000, forceful=True, penalty_points=penalty_points, max_cost=800, net_name=net_name)
+                 result = a_star(start, end, grid, allowed_points, max_steps=100_000, forceful=True, penalty_points=penalty_points, max_cost=1500, net_name=net_name)
                  if isinstance(result, dict):
                      failure_diag = result
                      path = None
