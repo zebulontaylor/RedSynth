@@ -108,6 +108,8 @@ if __name__ == "__main__":
     parser.add_argument("--timeout", type=float, default=60.0, help="Optimization timeout in seconds (default: 60)")
     parser.add_argument("--load", metavar="MODEL_FILE", help="Load a previously saved routed model instead of synthesizing")
     parser.add_argument("--output", "-o", default="routed_model.json", help="Output file for saved model (default: routed_model.json)")
+    parser.add_argument("--retry", action="store_true", help="Automatically restart placement and routing if connections fail")
+    parser.add_argument("--max-retries", type=int, default=10, help="Maximum number of retries when --retry is enabled (default: 10)")
     
     args = parser.parse_args()
     
@@ -144,29 +146,64 @@ if __name__ == "__main__":
         G = build_graph(models)
         print(f"Graph built with {G.number_of_nodes()} nodes and {G.number_of_edges()} edges.")
         
-        # Try optimization
-        # optimized_pos = optimize_placement(G, max_time_seconds=timeout)
+        attempt = 0
+        max_attempts = args.max_retries + 1 if args.retry else 1
+        priority_nets = None  # Nets to prioritize in subsequent attempts
         
-        print("Calculating spring layout...")
-        raw_pos = calculate_spring_layout(G, max_time_seconds=timeout)
-        
-        print("Visualizing spring layout...")
-        visualize_graph_interactive(G, raw_pos, output_filename="spring_layout_visualization.html")
-        
-        print("Legalizing placement...")
-        optimized_pos = legalize_placement(G, raw_pos)
-        
-        routed_paths = None
-        failed_nets = None
-        grid = None
-        
-        if not optimized_pos:
-            raise Exception("Optimization failed or timed out.")
+        while attempt < max_attempts:
+            attempt += 1
+            if args.retry:
+                print(f"\n{'='*60}")
+                print(f"Attempt {attempt}/{max_attempts}")
+                print(f"{'='*60}\n")
+            
+            # Try optimization
+            # optimized_pos = optimize_placement(G, max_time_seconds=timeout)
+            
+            print("Calculating spring layout...")
+            # Use attempt number as seed to get different but reproducible layouts per attempt
+            raw_pos = calculate_spring_layout(G, max_time_seconds=timeout, seed=attempt)
+            
+            print("Visualizing spring layout...")
+            visualize_graph_interactive(G, raw_pos, output_filename="spring_layout_visualization.html")
+            
+            print("Legalizing placement...")
+            optimized_pos = legalize_placement(G, raw_pos)
+            
+            routed_paths = None
+            failed_nets = None
+            grid = None
+            
+            if not optimized_pos:
+                raise Exception("Optimization failed or timed out.")
 
-
-        print("Using optimized placement.")
-        # Run routing
-        routed_paths, failed_nets, grid = route_nets(G, optimized_pos)
+            print("Using optimized placement.")
+            # Run routing with priority nets from previous attempt
+            # Enable early exit on failure if we have retries remaining (no point continuing after first failure)
+            early_exit = args.retry and attempt < max_attempts
+            routed_paths, failed_nets, grid, rip_up_counts = route_nets(G, optimized_pos, priority_nets=priority_nets, early_exit_on_failure=early_exit)
+            
+            # Check if routing succeeded
+            if not failed_nets:
+                if args.retry and attempt > 1:
+                    print(f"\nRouting succeeded on attempt {attempt}!")
+                break
+            
+            # Routing failed - collect priority nets for next attempt
+            if args.retry and attempt < max_attempts:
+                # Collect failed nets
+                failed_net_names = set(f['net'] for f in failed_nets)
+                # Collect nets that required rip-ups
+                ripped_up_nets = set(net for net, count in rip_up_counts.items() if count > 0)
+                # Combine for next attempt's priority
+                priority_nets = [] #list(failed_net_names | ripped_up_nets)
+                
+                print(f"\n{len(failed_nets)} connection(s) failed to route.")
+                if ripped_up_nets:
+                    print(f"{len(ripped_up_nets)} net(s) required rip-ups.")
+                print(f"Prioritizing {len(priority_nets)} net(s) for next attempt. Retrying...")
+            elif args.retry:
+                print(f"\n{len(failed_nets)} connection(s) failed after {max_attempts} attempts.")
         
         # Generate Redstone Grid
         print("Generating redstone block grid...")

@@ -104,10 +104,15 @@ def _get_spiral_offsets() -> List[Tuple[int, int, int]]:
     return _SPIRAL_OFFSETS_CACHE
 
 
-def calculate_spring_layout(G: nx.DiGraph, max_time_seconds: float = 60.0) -> Dict[str, Tuple[float, float, float]]:
+def calculate_spring_layout(G: nx.DiGraph, max_time_seconds: float = 60.0, seed: int = None) -> Dict[str, Tuple[float, float, float]]:
     """
     Calculates the initial placement using a force-directed algorithm (Spring Layout).
     Returns the raw positions before legalization.
+    
+    Args:
+        G: NetworkX graph
+        max_time_seconds: Timeout for optimization
+        seed: Random seed for reproducibility. If None, uses a random seed.
     """
     print("Starting force-directed placement (Spring Layout)...")
     
@@ -147,6 +152,10 @@ def calculate_spring_layout(G: nx.DiGraph, max_time_seconds: float = 60.0) -> Di
     
     print(f"Running custom force-directed simulation with Y-penalty (Scale: {scale})...")
     
+    # Use provided seed, or generate a random one if not specified
+    layout_seed = seed if seed is not None else np.random.randint(0, 2**31)
+    print(f"Using seed: {layout_seed}")
+    
     pos = nx.spring_layout(
         G, 
         dim=3, 
@@ -155,7 +164,7 @@ def calculate_spring_layout(G: nx.DiGraph, max_time_seconds: float = 60.0) -> Di
         fixed=fixed_nodes if fixed_nodes else None, 
         iterations=2000,
         weight='weight', 
-        seed=42,
+        seed=layout_seed,
         scale=scale
     )
     

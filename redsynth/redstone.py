@@ -59,22 +59,38 @@ def get_wire_positions_for_segment(
         positions.append((mx, my+vertical_offset, mz))
     else:
         # Slope move: 2 horizontal + 1 vertical - creates a staircase
-        # Place at start and midpoint
-        positions.append((x1, y1, z1))
+        # Use absolute grid alignment for slope offsets to ensure crossing slopes
+        # are synchronized and don't encroach on each other
         
-        # Midpoints
-        m1x = x1 + dx // 4
-        m1y = y1 + dy // 4
-        m1z = z1 + dz // 4
-        m2x = x1 + dx // 2
-        m2y = y1 + dy // 2
-        m2z = z1 + dz // 2
-        m3x = x1 + 3 * dx // 4
-        m3y = y1 + 3 * dy // 4
-        m3z = z1 + 3 * dz // 4
-        positions.append((m1x, m1y+1, m1z))
-        positions.append((m2x, m2y, m2z))
-        positions.append((m3x, m3y+1, m3z))
+        is_x_slope = abs(dx) > abs(dz)
+        
+        def slope_offset(px, pz, is_x_slope):
+            """
+            Calculate y-offset for slope wire based on absolute grid position.
+            - x-slopes: step up at odd x positions
+            - z-slopes: step up at odd z positions, plus extra offset at same-parity
+                        crossings to ensure 1-level separation from x-slopes
+            """
+            if is_x_slope:
+                return 1 if px % 2 == 1 else 0
+            else:
+                base_offset = 1 if pz % 2 == 1 else 0
+                # Add extra offset when x and z have same parity to avoid collision
+                # with x-slopes at crossing points
+                crossing_offset = 1 if px % 2 == pz % 2 else 0
+                return base_offset + crossing_offset
+        
+        # Calculate the 4 positions along the slope
+        all_points = [
+            (x1, y1, z1),
+            (x1 + dx // 4, y1 + dy // 4, z1 + dz // 4),
+            (x1 + dx // 2, y1 + dy // 2, z1 + dz // 2),
+            (x1 + 3 * dx // 4, y1 + 3 * dy // 4, z1 + 3 * dz // 4),
+        ]
+        
+        for (px, py, pz) in all_points:
+            offset = slope_offset(px, pz, is_x_slope)
+            positions.append((px, py + offset, pz))
     
     return positions
 

@@ -32,7 +32,7 @@ for dx, dy, dz in CARDINAL_DIRECTIONS:
 for direction in SLOPE_DIRECTIONS:
     dx, dy, dz = direction
     mid_start_rel, mid_end_rel = SLOPE_MIDPOINTS[direction]
-    ALL_NEIGHBOR_DELTAS.append((dx, dy, dz, 2.5, True, mid_start_rel, mid_end_rel))
+    ALL_NEIGHBOR_DELTAS.append((dx, dy, dz, 3.0, True, mid_start_rel, mid_end_rel))
 
 class RoutingGrid:
     def __init__(self, positions: Dict[str, Tuple[float, float, float]], nodes_data: Dict[str, dict]):
@@ -142,7 +142,7 @@ class RoutingGrid:
         # Apply Gaussian blur to spread density influence to neighboring chunks
         # This creates smoother routing preferences
         blurred_density = {}
-        blur_radius = 3  # How many chunks to spread influence
+        blur_radius = 4  # How many chunks to spread influence
         
         for chunk, volume in chunk_volume.items():
             base_density = volume / max_volume
@@ -178,7 +178,7 @@ class RoutingGrid:
                  point[1] // self.chunk_size, 
                  point[2] // self.chunk_size)
         density = self.density_map.get(chunk, 0.0)
-        return 0.2 * density
+        return 0.4 * density
 
     def _is_cardinal(self, vec):
         return (vec[0] != 0) + (vec[1] != 0) + (vec[2] != 0) == 1
@@ -249,6 +249,7 @@ class RoutingGrid:
                     if pt not in self.wire_directions:
                         self.wire_directions[pt] = set()
                     self.wire_directions[pt].add(d)
+                    self.wire_directions[pt].add((-dx, -dy, -dz))
 
                 footprint = self.get_segment_footprint(p1, p2)
                 for fp in footprint:
@@ -261,6 +262,7 @@ class RoutingGrid:
                         if fp not in self.wire_directions:
                             self.wire_directions[fp] = set()
                         self.wire_directions[fp].add((dx, dy, dz))
+                        self.wire_directions[fp].add((-dx, -dy, -dz))
 
     def remove_path(self, path, net_name):
         for i in range(len(path)):
@@ -299,7 +301,7 @@ class RoutingGrid:
                         if not self.wire_directions[fp]:
                             del self.wire_directions[fp]
 
-    def get_neighbors(self, point, allowed_points=None, forceful=False, penalty_points=None, start_point=None, goal_point=None, prev_direction=None):
+    def get_neighbors(self, point, allowed_points=None, forceful=False, penalty_points=None, start_point=None, goal_point=None, prev_direction=None, net_name=None):
         x, y, z = point
         min_x, min_y, min_z = self.min_coords
         max_x, max_y, max_z = self.max_coords
@@ -336,6 +338,16 @@ class RoutingGrid:
             if not blocked_contains(pt):
                 return False
             if allowed_lookup and allowed_lookup(pt):
+                # Even if allowed, check if occupied by another net (unless forceful)
+                if not forceful and net_name:
+                    nets_here = get_wire_occupancy(pt)
+                    if nets_here:
+                        # If any net here is NOT us, we are blocked
+                        # (We can overlap ourselves, e.g. loops or self-intersections are technically allowed by this check, 
+                        # though A* usually avoids them. The main point is to avoid OTHERS.)
+                        for n in nets_here:
+                            if n != net_name:
+                                return True
                 return False
             if forceful and not node_contains(pt):
                 return False
@@ -391,27 +403,29 @@ class RoutingGrid:
                     continue
                 if fast_path or not forceful:
                     dest_dirs = get_dirs(target)
-                    if is_slope:
-                        # Slopes can only pass through a blocked target if following an existing slope path
-                        if not (dest_dirs and move_vec in dest_dirs):
+                    #if is_slope:
+                    #    continue
+                    # Cardinals can only cross perpendicular cardinals (not slopes)
+                    # First check: dest must have ONLY cardinal directions (no slopes)
+                    #if dest_dirs and not all(is_cardinal(d) for d in dest_dirs):
+                        # Destination has slope directions - cannot cross
+                    #    continue
+                    # Second check: crossing must be perpendicular
+                    if not (dest_dirs and all(is_perpendicular(d, move_vec) for d in dest_dirs)):
+                        if not (current_dirs and all(is_perpendicular(d, move_vec) for d in current_dirs)):
                             continue
-                    else:
-                        # Cardinals can only cross perpendicular cardinals (not slopes)
-                        # First check: dest must have ONLY cardinal directions (no slopes)
-                        if dest_dirs and not all(is_cardinal(d) for d in dest_dirs):
-                            # Destination has slope directions - cannot cross
-                            continue
-                        # Second check: crossing must be perpendicular
-                        if not (dest_dirs and all(is_perpendicular(d, move_vec) for d in dest_dirs)):
-                            if not (current_dirs and all(is_cardinal(d) and is_perpendicular(d, move_vec) for d in current_dirs)):
-                                continue
 
             if is_slope:
                 mid_start = (x + mid_start_rel[0], y + mid_start_rel[1], z + mid_start_rel[2])
                 if point_blocked(mid_start):
                     if not forceful:
                         mid_dirs_start = get_dirs(mid_start)
-                        if not (mid_dirs_start and move_vec in mid_dirs_start):
+                        if mid_dirs_start:
+                            # Check if we can follow existing path
+                            can_follow = move_vec in mid_dirs_start
+                            if not can_follow:
+                                continue
+                        else:
                             continue
                     else:
                         pass  # allowed to bulldoze
@@ -420,7 +434,12 @@ class RoutingGrid:
                 if point_blocked(mid_end):
                     if not forceful:
                         mid_dirs_end = get_dirs(mid_end)
-                        if not (mid_dirs_end and move_vec in mid_dirs_end):
+                        if mid_dirs_end:
+                            # Check if we can follow existing path
+                            can_follow = move_vec in mid_dirs_end
+                            if not can_follow:
+                                continue
+                        else:
                             continue
                     else:
                         pass
@@ -429,13 +448,13 @@ class RoutingGrid:
             
             # Density-based center avoidance penalty
             density_penalty = self.get_density_penalty(target)
-            cost += density_penalty * (2 if dy != 0 else 0.5)
+            cost += density_penalty * (2 if dy != 0 else 1)
 
             if fast_path:
                 if up_dirs and move_vec not in up_dirs:
-                    cost += 0.1
+                    cost += 0.2
                 if down_dirs and move_vec not in down_dirs:
-                    cost += 0.1
+                    cost += 0.2
                 append_neighbor((target, cost))
                 continue
 
@@ -475,7 +494,7 @@ class RoutingGrid:
         return valid
 
 
-def a_star(start, goal, grid, allowed_points, max_steps=50_000, forceful=False, penalty_points=None, debug_goal=False, max_cost=None):
+def a_star(start, goal, grid, allowed_points, max_steps=50_000, forceful=False, penalty_points=None, debug_goal=False, max_cost=None, net_name=None):
     gx, gy, gz = goal
     
     # More aggressive heuristic to guide search better
@@ -544,7 +563,7 @@ def a_star(start, goal, grid, allowed_points, max_steps=50_000, forceful=False, 
             previous = came_from[current]
             prev_direction = (current[0]-previous[0], current[1]-previous[1], current[2]-previous[2])
             
-        for neighbor, move_cost in grid.get_neighbors(current, allowed_points, forceful, penalty_points, start, goal, prev_direction):
+        for neighbor, move_cost in grid.get_neighbors(current, allowed_points, forceful, penalty_points, start, goal, prev_direction, net_name):
             # Debug tracking
             if neighbor == goal:
                 goal_seen_as_neighbor = True
@@ -721,7 +740,24 @@ def _get_net_length(net_data, positions, nodes_data):
     return length
 
 
-def route_nets(G: nx.DiGraph, positions: Dict[str, Tuple[float, float, float]], max_time_seconds: float = None) -> Tuple[Dict[str, List[List[Tuple[int, int, int]]]], List[Dict], RoutingGrid]:
+def route_nets(G: nx.DiGraph, positions: Dict[str, Tuple[float, float, float]], max_time_seconds: float = None, priority_nets: List[str] = None, early_exit_on_failure: bool = False) -> Tuple[Dict[str, List[List[Tuple[int, int, int]]]], List[Dict], RoutingGrid, Dict[str, int]]:
+    """
+    Route all nets in the graph.
+    
+    Args:
+        G: NetworkX graph with nodes and edges
+        positions: Dict mapping node names to (x, y, z) positions
+        max_time_seconds: Optional timeout
+        priority_nets: Optional list of net names to route first (e.g., nets that failed or required rip-ups in previous attempt)
+        early_exit_on_failure: If True, stop routing immediately on the first failed connection
+    
+    Returns:
+        Tuple of (routed_paths, failed_connections_list, grid, rip_up_counts)
+        - routed_paths: Dict mapping net names to lists of paths
+        - failed_connections_list: List of dicts with failed connection info
+        - grid: The RoutingGrid used
+        - rip_up_counts: Dict mapping net names to number of times they were ripped up
+    """
     print("Starting routing (Voxel Mode)...")
     
     nodes_data = {}
@@ -787,16 +823,21 @@ def route_nets(G: nx.DiGraph, positions: Dict[str, Tuple[float, float, float]], 
     failed_connections = 0
     total_connections = 0
     
-    # Sort nets by priority: 8b first, then shortest length
+    # Sort nets by priority: priority_nets first, then 8b, then shortest length
     print("Prioritizing nets...")
+    priority_set = set(priority_nets) if priority_nets else set()
+    if priority_nets:
+        print(f"  {len(priority_nets)} nets marked as high priority from previous attempt")
+    
     net_priorities = []
     for net_name, net_data in nets.items():
+        is_priority = net_name in priority_set
         is_8b = _is_8b_net(net_name, net_data, nodes_data)
         length = _get_net_length(net_data, positions, nodes_data)
-        # Priority: 8b first (True > False), then length (Short > Long)
-        # Sort key: (not is_8b, length)
-        # False < True, so (False, len) comes before (True, len) -> 8b comes first
-        net_priorities.append((net_name, (not is_8b, length)))
+        # Priority: priority_nets first, then 8b, then by length
+        # Sort key: (not is_priority, not is_8b, length)
+        # False < True, so priority nets come first
+        net_priorities.append((net_name, (not is_priority, not is_8b, length)))
     
     net_priorities.sort(key=lambda x: x[1])
     sorted_nets = [n[0] for n in net_priorities]
@@ -912,7 +953,7 @@ def route_nets(G: nx.DiGraph, positions: Dict[str, Tuple[float, float, float]], 
             if end in penalty_points:
                 penalty_points.remove(end)
             
-            result = a_star(start, end, grid, allowed_points, forceful=False, penalty_points=penalty_points)
+            result = a_star(start, end, grid, allowed_points, forceful=False, penalty_points=penalty_points, net_name=net_name)
             
             # Track failure diagnostics for reporting
             failure_diag = None
@@ -923,7 +964,7 @@ def route_nets(G: nx.DiGraph, positions: Dict[str, Tuple[float, float, float]], 
                 path = result
             
             if path is None and rip_up_counts[net_name] < MAX_RIP_UPS:
-                 result = a_star(start, end, grid, allowed_points, max_steps=100_000, forceful=True, penalty_points=penalty_points, max_cost=800)
+                 result = a_star(start, end, grid, allowed_points, max_steps=100_000, forceful=True, penalty_points=penalty_points, max_cost=800, net_name=net_name)
                  if isinstance(result, dict):
                      failure_diag = result
                      path = None
@@ -1035,6 +1076,12 @@ def route_nets(G: nx.DiGraph, positions: Dict[str, Tuple[float, float, float]], 
                 remaining_sinks.remove(end)
                 print(f"{len(routing_queue)}/{len(nets)} nets left to route.\r", end="")
                 success = False
+                
+                # Early exit if requested (useful when retrying - no point continuing after first failure)
+                if early_exit_on_failure:
+                    print(f"\n  [Early Exit] Stopping routing due to failed connection (retry mode)")
+                    routing_queue.clear()
+                    break
         
         # Convert paths back to world coordinates (x2) for output
         # Actually, let's return the grid coordinates and let redstone.py handle the scaling/filling
@@ -1049,4 +1096,4 @@ def route_nets(G: nx.DiGraph, positions: Dict[str, Tuple[float, float, float]], 
         routed_paths[net_name] = world_paths
 
     print(f"\nRouting complete. Failed connections: {failed_connections}/{total_connections}")
-    return routed_paths, failed_connections_list, grid
+    return routed_paths, failed_connections_list, grid, rip_up_counts
