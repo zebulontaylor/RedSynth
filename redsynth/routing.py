@@ -172,13 +172,13 @@ class RoutingGrid:
     def get_density_penalty(self, point):
         """Get density-based routing penalty for a grid point.
 
-        Returns a value between 0.0 and roughly 0.9, higher near dense component clusters.
+        Returns a value between 0.0 and roughly 0.5, higher near dense component clusters.
         """
         chunk = (point[0] // self.chunk_size,
                  point[1] // self.chunk_size,
                  point[2] // self.chunk_size)
         density = self.density_map.get(chunk, 0.0)
-        return 0.9 * density
+        return 0.5 * density
 
     def get_congestion_penalty(self, point, net_name=None):
         """Estimate dynamic congestion around a grid point based on routed wires."""
@@ -191,7 +191,7 @@ class RoutingGrid:
             if overlap < 0:
                 overlap = 0
 
-        penalty = 0.45 * overlap
+        penalty = 0.2 * overlap
 
         for dy in (-1, 1):
             neighbor = (point[0], point[1] + dy, point[2])
@@ -202,7 +202,7 @@ class RoutingGrid:
             if net_name and net_name in neighbor_nets:
                 neighbor_overlap -= 1
             if neighbor_overlap > 0:
-                penalty += 0.15
+                penalty += 0.05
 
         return penalty
 
@@ -400,11 +400,11 @@ class RoutingGrid:
                         near_endpoint = True
                 if has_slope_contact and near_endpoint:
                     break
-            base = 200.0
+            base = 120.0
             if has_slope_contact:
-                base *= 0.6
+                base *= 0.7
             if near_endpoint:
-                base *= 0.15
+                base *= 0.25
             return base * len(nets)
 
         valid = []
@@ -486,24 +486,24 @@ class RoutingGrid:
             
             # Density-based center avoidance penalty
             density_penalty = self.get_density_penalty(target)
-            cost += density_penalty * (2 if dy != 0 else 1)
+            cost += density_penalty * (1.5 if dy != 0 else 1.0)
             
             # Congestion penalty based on routed wires
             congestion_penalty = get_congestion_penalty(target, net_name)
             cost += congestion_penalty
 
             if segment_density:
-                cost += segment_density
+                cost += 0.4 * segment_density
             if segment_congestion:
-                cost += 0.5 * segment_congestion
+                cost += 0.2 * segment_congestion
             if is_crossing:
-                cost += 0.8
+                cost += 0.35
 
             if fast_path:
                 if up_dirs and move_vec not in up_dirs:
-                    cost += 0.35
+                    cost += 0.2
                 if down_dirs and move_vec not in down_dirs:
-                    cost += 0.35
+                    cost += 0.2
                 append_neighbor((target, cost))
                 continue
 
@@ -531,19 +531,19 @@ class RoutingGrid:
             up_dirs_local = up_dirs if up_dirs is not None else get_dirs((x, y + 1, z))
             down_dirs_local = down_dirs if down_dirs is not None else get_dirs((x, y - 1, z))
             if up_dirs_local and move_vec not in up_dirs_local:
-                cost += 0.25
+                cost += 0.15
             if down_dirs_local and move_vec not in down_dirs_local:
-                cost += 0.25
+                cost += 0.15
 
             if penalty_lookup and penalty_lookup(target):
-                cost += 800.0
+                cost += 500.0
 
             append_neighbor((target, cost))
 
         return valid
 
 
-def a_star(start, goal, grid, allowed_points, max_steps=50_000, forceful=False, penalty_points=None, debug_goal=False, max_cost=None, net_name=None):
+def a_star(start, goal, grid, allowed_points, max_steps=80_000, forceful=False, penalty_points=None, debug_goal=False, max_cost=None, net_name=None):
     gx, gy, gz = goal
     
     # Improved heuristic aligned with slope/cardinal costs
@@ -622,8 +622,8 @@ def a_star(start, goal, grid, allowed_points, max_steps=50_000, forceful=False, 
             penalty = 0.0
             new_direction = (neighbor[0]-current[0], neighbor[1]-current[1], neighbor[2]-current[2])
             if prev_direction is not None and new_direction != prev_direction:
-                # Higher turn penalty for better path quality
-                penalty = 0.4
+                # Mild turn penalty to encourage smooth paths without blocking progress
+                penalty = 0.18
             
             # Check for illegal back moves
             if prev_direction is not None:
@@ -642,7 +642,7 @@ def a_star(start, goal, grid, allowed_points, max_steps=50_000, forceful=False, 
                     new_down = new_dy < 0
                     if prev_down or new_down:
                         continue
-                    penalty += 0.3
+                    penalty += 0.15
 
             tentative_g = current_g + move_cost + penalty
             
@@ -907,7 +907,7 @@ def route_nets(G: nx.DiGraph, positions: Dict[str, Tuple[float, float, float]], 
     # Queue of nets to route
     routing_queue = deque(sorted_nets)
     rip_up_counts = {net: 0 for net in nets}
-    MAX_RIP_UPS = 12
+    MAX_RIP_UPS = 15
     
     start_time = time.time()
     
@@ -980,185 +980,199 @@ def route_nets(G: nx.DiGraph, positions: Dict[str, Tuple[float, float, float]], 
         success = True
         
         while remaining_sinks:
-            best_score = float('inf')
-            best_pair = None
-            
+            candidate_pairs = []
             for sp in remaining_sinks:
                 for tp in tree_points:
-                     # Calculate base Manhattan distance
-                     dist = abs(tp[0]-sp[0]) + abs(tp[1]-sp[1]) + abs(tp[2]-sp[2])
-                     
-                     # Estimate congestion along the path
-                     mid_x = (tp[0] + sp[0]) // 2
-                     mid_y = (tp[1] + sp[1]) // 2
-                     mid_z = (tp[2] + sp[2]) // 2
-                     mid_point = (mid_x, mid_y, mid_z)
-                     congestion = grid.get_congestion_penalty(mid_point, net_name)
-                     density = grid.get_density_penalty(mid_point)
-                     driver_bias = abs(sp[0]-start_point[0]) + abs(sp[1]-start_point[1]) + abs(sp[2]-start_point[2])
+                    dist = abs(tp[0]-sp[0]) + abs(tp[1]-sp[1]) + abs(tp[2]-sp[2])
+                    mid_x = (tp[0] + sp[0]) // 2
+                    mid_y = (tp[1] + sp[1]) // 2
+                    mid_z = (tp[2] + sp[2]) // 2
+                    mid_point = (mid_x, mid_y, mid_z)
+                    congestion = grid.get_congestion_penalty(mid_point, net_name)
+                    density = grid.get_density_penalty(mid_point)
+                    score = dist + congestion * 2.0 + density * 1.5
+                    candidate_pairs.append((score, tp, sp))
 
-                     # Combined score: distance adjusted by congestion and reach priority
-                     score = dist + congestion * 5.0 + density * 3.0 - driver_bias * 0.2
-
-                     if score < best_score:
-                         best_score = score
-                         best_pair = (tp, sp)
-            
-            if not best_pair:
+            if not candidate_pairs:
                 success = False
                 break
-                
-            start, end = best_pair
-            allowed_points = set(tree_points)
-            allowed_points.add(end)
-            penalty_points = set()
-            
-            if driver_node:
-                driver_coords = grid.get_node_coords(driver_node)
-                allowed_points.update(driver_coords)
-                penalty_points.update(driver_coords)
-                
-            if end in sink_breakouts:
-                sink_coords = sink_breakouts[end]
-                allowed_points.update(sink_coords)
-                penalty_points.update(sink_coords)
-            
-            # Remove start and end from penalty points so we don't penalize connecting to the pin itself
-            if start in penalty_points:
-                penalty_points.remove(start)
-            if end in penalty_points:
-                penalty_points.remove(end)
-            
-            result = a_star(start, end, grid, allowed_points, forceful=False, penalty_points=penalty_points, net_name=net_name)
-            
-            # Track failure diagnostics for reporting
-            failure_diag = None
-            if isinstance(result, dict):
-                failure_diag = result
-                path = None
-            else:
-                path = result
-            
-            if path is None and rip_up_counts[net_name] < MAX_RIP_UPS:
-                 result = a_star(start, end, grid, allowed_points, max_steps=100_000, forceful=True, penalty_points=penalty_points, max_cost=1500, net_name=net_name)
-                 if isinstance(result, dict):
-                     failure_diag = result
-                     path = None
-                 else:
-                     path = result
-                 if path:
-                    # Handle rip-up
-                    collided_nets = set()
-                    for i in range(len(path)):
-                        p = path[i]
-                        if p in grid.wire_occupancy:
-                            for victim in grid.wire_occupancy[p]:
-                                if victim != net_name:
-                                    collided_nets.add(victim)
-                        # Check vertical claims too?
-                        if i < len(path) - 1:
-                            footprint = grid.get_segment_footprint(p, path[i+1])
-                            for fp in footprint:
-                                if fp in grid.wire_occupancy:
-                                    for victim in grid.wire_occupancy[fp]:
-                                        if victim != net_name:
-                                            collided_nets.add(victim)
 
-                    if collided_nets:
-                        print(f"  [Rip-up] Net {net_name} ripping up: {collided_nets}")
-                        for victim in collided_nets:
-                            if victim in routed_paths:
-                                for vp in routed_paths[victim]:
-                                    grid.remove_path(vp, victim)
-                                del routed_paths[victim]
-                                routing_queue.append(victim)
-                                rip_up_counts[victim] += 1
+            candidate_pairs.sort(key=lambda x: x[0])
+            max_candidates = min(6, len(candidate_pairs))
+            attempt_success = False
+            best_start = None
+            best_end = None
+            failure_diag_best = None
+            allowed_points_best = None
 
-            if path:
-                current_net_paths.append(path)
-                grid.add_path(path, net_name)
-                for p in path:
-                    tree_points.add(p)
-                remaining_sinks.remove(end)
-            else:
-                # Print detailed failure diagnostics
-                print(f"\n  [Fail] Net '{net_name}' from {start} to {end}")
-                if failure_diag:
-                    closest = failure_diag['closest']
-                    dist = failure_diag['distance']
-                    steps = failure_diag['steps']
-                    reason = failure_diag['reason']
-                    goal_seen = failure_diag.get('goal_seen', False)
-                    goal_queued = failure_diag.get('goal_queued', False)
-                    print(f"         Closest point: {closest}, distance remaining: {dist:.2f}")
-                    print(f"         Reason: {reason} after {steps} steps")
-                    print(f"         Goal seen as neighbor: {goal_seen}, Goal added to queue: {goal_queued}")
-                    
-                    # Analyze blocking near closest point
-                    blocking = _analyze_blocking(grid, closest, allowed_points)
-                    node_b = blocking['node_blocked']
-                    node_allowed = blocking['node_blocked_but_allowed']
-                    wire_b = blocking['wire_blocked']
-                    oob = blocking['out_of_bounds']
-                    pin_b = blocking['pin_blocked']
-                    wire_nets = blocking['wire_nets']
-                    blocking_nodes = blocking['blocking_nodes']
-                    
-                    parts = []
-                    if node_b > 0:
-                        nodes_str = ", ".join(list(blocking_nodes)[:3])
-                        if len(blocking_nodes) > 3:
-                            nodes_str += f" +{len(blocking_nodes)-3} more"
-                        parts.append(f"{node_b} by other nodes ({nodes_str})")
-                    if node_allowed > 0:
-                        parts.append(f"{node_allowed} by own node (allowed)")
-                    if wire_b > 0:
-                        nets_str = ", ".join(list(wire_nets)[:3])
-                        if len(wire_nets) > 3:
-                            nets_str += f" +{len(wire_nets)-3} more"
-                        parts.append(f"{wire_b} by wires ({nets_str})")
-                    if pin_b > 0:
-                        parts.append(f"{pin_b} by other pins")
-                    if oob > 0:
-                        parts.append(f"{oob} out of bounds")
-                    
-                    if parts:
-                        print(f"         Blocking: {', '.join(parts)}")
-                    
-                    # Extra diagnostics: why can't we reach the goal from closest?
-                    if dist < 2.0:
-                        print(f"         --- Goal reachability analysis ---")
-                        print(f"         Goal in blocked_coords: {end in grid.blocked_coords}")
-                        print(f"         Goal in node_occupancy: {end in grid.node_occupancy}")
-                        print(f"         Goal in wire_occupancy: {grid.wire_occupancy.get(end, set())}")
-                        print(f"         Goal in allowed_points: {end in allowed_points}")
-                        print(f"         Tree points near goal: {[tp for tp in tree_points if abs(tp[0]-end[0]) + abs(tp[1]-end[1]) + abs(tp[2]-end[2]) <= 2]}")
-                        
-                        # Check what moves from closest would reach goal
-                        dx, dy, dz = end[0] - closest[0], end[1] - closest[1], end[2] - closest[2]
-                        print(f"         Move needed: ({dx}, {dy}, {dz})")
-                        
-                        # Check if that move is in the move set
-                        cardinals = [(1,0,0), (-1,0,0), (0,0,1), (0,0,-1)]
-                        slopes = [(2,1,0), (2,-1,0), (-2,1,0), (-2,-1,0), (0,1,2), (0,-1,2), (0,1,-2), (0,-1,-2)]
-                        all_moves = cardinals + slopes
-                        if (dx, dy, dz) in all_moves:
-                            print(f"         Move IS in move set")
-                        else:
-                            print(f"         Move NOT in move set! Available: cardinals + slopes")
-                
-                failed_connections += 1
-                failed_connections_list.append({'net': net_name, 'start': start, 'end': end})
-                remaining_sinks.remove(end)
-                print(f"{len(routing_queue)}/{len(nets)} nets left to route.\r", end="")
-                success = False
-                
-                # Early exit if requested (useful when retrying - no point continuing after first failure)
-                if early_exit_on_failure:
-                    print(f"\n  [Early Exit] Stopping routing due to failed connection (retry mode)")
-                    routing_queue.clear()
+            for idx in range(max_candidates):
+                _, start, end = candidate_pairs[idx]
+                allowed_points = set(tree_points)
+                allowed_points.add(end)
+                penalty_points = set()
+
+                if driver_node:
+                    driver_coords = grid.get_node_coords(driver_node)
+                    allowed_points.update(driver_coords)
+                    penalty_points.update(driver_coords)
+
+                if end in sink_breakouts:
+                    sink_coords = sink_breakouts[end]
+                    allowed_points.update(sink_coords)
+                    penalty_points.update(sink_coords)
+
+                if start in penalty_points:
+                    penalty_points.remove(start)
+                if end in penalty_points:
+                    penalty_points.remove(end)
+
+                result = a_star(start, end, grid, allowed_points, forceful=False, penalty_points=penalty_points, net_name=net_name)
+
+                failure_diag = None
+                if isinstance(result, dict):
+                    failure_diag = result
+                    path = None
+                else:
+                    path = result
+
+                if path is None and rip_up_counts[net_name] < MAX_RIP_UPS:
+                    result = a_star(start, end, grid, allowed_points, max_steps=120_000, forceful=True, penalty_points=penalty_points, max_cost=3500, net_name=net_name)
+                    if isinstance(result, dict):
+                        failure_diag = result
+                        path = None
+                    else:
+                        path = result
+                    if path:
+                        collided_nets = set()
+                        for i in range(len(path)):
+                            p = path[i]
+                            if p in grid.wire_occupancy:
+                                for victim in grid.wire_occupancy[p]:
+                                    if victim != net_name:
+                                        collided_nets.add(victim)
+                            if i < len(path) - 1:
+                                footprint = grid.get_segment_footprint(p, path[i+1])
+                                for fp in footprint:
+                                    if fp in grid.wire_occupancy:
+                                        for victim in grid.wire_occupancy[fp]:
+                                            if victim != net_name:
+                                                collided_nets.add(victim)
+
+                        if collided_nets:
+                            print(f"  [Rip-up] Net {net_name} ripping up: {collided_nets}")
+                            for victim in collided_nets:
+                                if victim in routed_paths:
+                                    for vp in routed_paths[victim]:
+                                        grid.remove_path(vp, victim)
+                                    del routed_paths[victim]
+                                    routing_queue.append(victim)
+                                    rip_up_counts[victim] += 1
+
+                if path:
+                    current_net_paths.append(path)
+                    grid.add_path(path, net_name)
+                    for p in path:
+                        tree_points.add(p)
+                    if end in remaining_sinks:
+                        remaining_sinks.remove(end)
+                    attempt_success = True
                     break
-        
+                else:
+                    if idx == 0:
+                        best_start = start
+                        best_end = end
+                        failure_diag_best = failure_diag
+                        allowed_points_best = set(allowed_points)
+
+            if attempt_success:
+                continue
+
+            if best_start is None:
+                _, best_start, best_end = candidate_pairs[0]
+                failure_diag = failure_diag_best
+                allowed_points = set(tree_points)
+            else:
+                failure_diag = failure_diag_best
+                allowed_points = allowed_points_best if allowed_points_best is not None else set(tree_points)
+
+            start = best_start
+            end = best_end
+
+            print(f"\n  [Fail] Net '{net_name}' from {start} to {end}")
+            if failure_diag:
+                closest = failure_diag['closest']
+                dist = failure_diag['distance']
+                steps = failure_diag['steps']
+                reason = failure_diag['reason']
+                goal_seen = failure_diag.get('goal_seen', False)
+                goal_queued = failure_diag.get('goal_queued', False)
+                print(f"         Closest point: {closest}, distance remaining: {dist:.2f}")
+                print(f"         Reason: {reason} after {steps} steps")
+                print(f"         Goal seen as neighbor: {goal_seen}, Goal added to queue: {goal_queued}")
+
+                blocking = _analyze_blocking(grid, closest, allowed_points)
+                node_b = blocking['node_blocked']
+                node_allowed = blocking['node_blocked_but_allowed']
+                wire_b = blocking['wire_blocked']
+                oob = blocking['out_of_bounds']
+                pin_b = blocking['pin_blocked']
+                wire_nets = blocking['wire_nets']
+                blocking_nodes = blocking['blocking_nodes']
+
+                parts = []
+                if node_b > 0:
+                    nodes_str = ", ".join(list(blocking_nodes)[:3])
+                    if len(blocking_nodes) > 3:
+                        nodes_str += f" +{len(blocking_nodes)-3} more"
+                    parts.append(f"{node_b} by other nodes ({nodes_str})")
+                if node_allowed > 0:
+                    parts.append(f"{node_allowed} by own node (allowed)")
+                if wire_b > 0:
+                    nets_str = ", ".join(list(wire_nets)[:3])
+                    if len(wire_nets) > 3:
+                        nets_str += f" +{len(wire_nets)-3} more"
+                    parts.append(f"{wire_b} by wires ({nets_str})")
+                if pin_b > 0:
+                    parts.append(f"{pin_b} by other pins")
+                if oob > 0:
+                    parts.append(f"{oob} out of bounds")
+
+                if parts:
+                    print(f"         Blocking: {', '.join(parts)}")
+
+                if dist < 2.0:
+                    print(f"         --- Goal reachability analysis ---")
+                    print(f"         Goal in blocked_coords: {end in grid.blocked_coords}")
+                    print(f"         Goal in node_occupancy: {end in grid.node_occupancy}")
+                    print(f"         Goal in wire_occupancy: {grid.wire_occupancy.get(end, set())}")
+                    print(f"         Goal in allowed_points: {end in allowed_points}")
+                    print(f"         Tree points near goal: {[tp for tp in tree_points if abs(tp[0]-end[0]) + abs(tp[1]-end[1]) + abs(tp[2]-end[2]) <= 2]}")
+
+                    dx, dy, dz = end[0] - closest[0], end[1] - closest[1], end[2] - closest[2]
+                    print(f"         Move needed: ({dx}, {dy}, {dz})")
+
+                    cardinals = [(1,0,0), (-1,0,0), (0,0,1), (0,0,-1)]
+                    slopes = [(2,1,0), (2,-1,0), (-2,1,0), (-2,-1,0), (0,1,2), (0,-1,2), (0,1,-2), (0,-1,-2)]
+                    all_moves = cardinals + slopes
+                    if (dx, dy, dz) in all_moves:
+                        print(f"         Move IS in move set")
+                    else:
+                        print(f"         Move NOT in move set! Available: cardinals + slopes")
+            else:
+                print(f"         (No additional diagnostics available)")
+
+            failed_connections += 1
+            failed_connections_list.append({'net': net_name, 'start': start, 'end': end})
+            if end in remaining_sinks:
+                remaining_sinks.remove(end)
+            print(f"{len(routing_queue)}/{len(nets)} nets left to route.\r", end="")
+            success = False
+
+            if early_exit_on_failure:
+                print(f"\n  [Early Exit] Stopping routing due to failed connection (retry mode)")
+                routing_queue.clear()
+                break
+
         # Convert paths back to world coordinates (x2) for output
         # Actually, let's return the grid coordinates and let redstone.py handle the scaling/filling
         # But wait, visualization might expect world coords?
